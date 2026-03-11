@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  name         String
+  role         String        @default("PLAYER") // PLAYER | ORGANIZER
+  balance      Float         @default(0) // User's PokerPay account balance
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  organizedTables Table[]       @relation("OrganizerTables")
+  tablePlayers    TablePlayer[]
+  ledgerEntries   LedgerEntry[]
+}
+
+model LedgerEntry {
+  id          String   @id @default(uuid())
+  amount      Float    // Positive for deposits/cashouts, negative for buy-ins
+  type        String   // DEPOSIT | BUY_IN | CASH_OUT
+  description String?
+  createdAt   DateTime @default(now())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Table {
+  id          String   @id @default(uuid())
+  name        String
+  maxPlayers  Int      @default(9)
+  buyInAmount Float
+  status      String   @default("OPEN") // OPEN | CLOSED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizerId String
+  organizer   User   @relation("OrganizerTables", fields: [organizerId], references: [id])
+
+  chipDenominations ChipDenomination[]
+  players           TablePlayer[]
+}
+
+model ChipDenomination {
+  id      String @id @default(uuid())
+  color   String // hex color code
+  label   String // e.g. "White", "Red"
+  value   Float  // dollar value
+
+  tableId String
+  table   Table  @relation(fields: [tableId], references: [id], onDelete: Cascade)
+}
+
+model TablePlayer {
+  id       String   @id @default(uuid())
+  status   String   @default("ACTIVE") // ACTIVE | CASHED_OUT
+  joinedAt DateTime @default(now())
+
+  tableId String
+  table   Table  @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([tableId, userId])
+}
