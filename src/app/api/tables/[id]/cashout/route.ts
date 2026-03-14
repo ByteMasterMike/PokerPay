@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+// Max cashout is buy-in * 10 to allow for winnings while preventing abuse
+const MAX_CASHOUT_MULTIPLIER = 10;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,9 +17,17 @@ export async function POST(
     }
 
     const { id } = await params;
-    const { amount } = await request.json();
 
-    if (amount === undefined || typeof amount !== 'number' || amount < 0) {
+    let body: { amount?: number };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
+
+    const { amount } = body;
+
+    if (amount === undefined || typeof amount !== 'number' || amount <= 0) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
     }
 
@@ -44,7 +55,27 @@ export async function POST(
       );
     }
 
-    await prisma.$transaction(async (tx) => {
+    const maxCashout = tablePlayer.table.buyInAmount * MAX_CASHOUT_MULTIPLIER;
+    if (amount > maxCashout) {
+      return NextResponse.json(
+        { error: `Cashout amount exceeds maximum of $${maxCashout.toFixed(2)}` },
+        { status: 400 }
+      );
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updateResult = await tx.tablePlayer.updateMany({
+        where: {
+          id: tablePlayer.id,
+          status: 'ACTIVE',
+        },
+        data: { status: 'CASHED_OUT' },
+      });
+
+      if (updateResult.count === 0) {
+        return { success: false as const, conflict: true };
+      }
+
       await tx.user.update({
         where: { id: session.user.id },
         data: { balance: { increment: amount } },
@@ -59,11 +90,15 @@ export async function POST(
         },
       });
 
-      await tx.tablePlayer.update({
-        where: { id: tablePlayer.id },
-        data: { status: 'CASHED_OUT' },
-      });
+      return { success: true as const, conflict: false };
     });
+
+    if (result.conflict) {
+      return NextResponse.json(
+        { error: 'You have already cashed out from this table' },
+        { status: 409 }
+      );
+    }
 
     return NextResponse.json({ success: true, message: 'Cashed out successfully' });
   } catch (error) {

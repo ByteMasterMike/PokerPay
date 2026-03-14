@@ -1,12 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawCallback = searchParams.get('callbackUrl');
+  const callbackUrl =
+    rawCallback && rawCallback.startsWith('/') && !rawCallback.startsWith('//')
+      ? rawCallback
+      : '/dashboard';
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -29,7 +35,7 @@ export default function LoginPage() {
       if (signInResult?.error) {
         setError('Invalid email or password');
       } else {
-        router.push('/dashboard');
+        router.push(callbackUrl);
         router.refresh();
       }
     } catch {
@@ -68,9 +74,14 @@ export default function LoginPage() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password" className="form-label">
-              Password
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <label htmlFor="password" className="form-label" style={{ marginBottom: 0 }}>
+                Password
+              </label>
+              <Link href="/auth/forgot-password" className="text-xs" style={{ color: 'var(--color-gold)' }}>
+                Forgot password?
+              </Link>
+            </div>
             <input
               id="password"
               type="password"
@@ -103,5 +114,22 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="auth-container">
+          <div className="auth-card">
+            <div className="spinner" style={{ margin: '2rem auto' }}></div>
+            <p className="auth-subtitle">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

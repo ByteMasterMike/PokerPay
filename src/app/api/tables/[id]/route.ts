@@ -11,11 +11,11 @@ export async function GET(
   const table = await prisma.table.findUnique({
     where: { id },
     include: {
-      organizer: { select: { id: true, name: true, email: true } },
+      organizer: { select: { id: true, name: true } },
       chipDenominations: { orderBy: { value: 'asc' } },
       players: {
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: { id: true, name: true } },
         },
         orderBy: { joinedAt: 'asc' },
       },
@@ -39,7 +39,15 @@ export async function POST(
   }
 
   const { id } = await params;
-  const { action } = await request.json();
+
+  let body: { action?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  const { action } = body;
 
   const table = await prisma.table.findUnique({
     where: { id },
@@ -93,30 +101,71 @@ export async function POST(
       );
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: session.user.id },
-        data: { balance: { decrement: table.buyInAmount } },
+    try {
+      const joinResult = await prisma.$transaction(async (tx) => {
+        const playerCount = await tx.tablePlayer.count({
+          where: { tableId: id },
+        });
+        if (playerCount >= table.maxPlayers) {
+          return { success: false as const, error: 'This table is full' };
+        }
+
+        const existingInTx = await tx.tablePlayer.findUnique({
+          where: {
+            tableId_userId: { tableId: id, userId: session.user.id },
+          },
+        });
+        if (existingInTx) {
+          return { success: false as const, error: 'You have already joined this table' };
+        }
+
+        const balanceUpdate = await tx.user.updateMany({
+          where: {
+            id: session.user.id,
+            balance: { gte: table.buyInAmount },
+          },
+          data: { balance: { decrement: table.buyInAmount } },
+        });
+        if (balanceUpdate.count === 0) {
+          return { success: false as const, error: `Insufficient funds. Buy-in is $${table.buyInAmount}` };
+        }
+
+        await tx.ledgerEntry.create({
+          data: {
+            userId: session.user.id,
+            amount: -table.buyInAmount,
+            type: 'BUY_IN',
+            description: `Buy-in for table: ${table.name}`,
+          },
+        });
+
+        await tx.tablePlayer.create({
+          data: {
+            tableId: id,
+            userId: session.user.id,
+          },
+        });
+
+        return { success: true as const };
       });
 
-      await tx.ledgerEntry.create({
-        data: {
-          userId: session.user.id,
-          amount: -table.buyInAmount,
-          type: 'BUY_IN',
-          description: `Buy-in for table: ${table.name}`,
-        },
-      });
+      if (!joinResult.success) {
+        return NextResponse.json(
+          { error: joinResult.error },
+          { status: 400 }
+        );
+      }
 
-      await tx.tablePlayer.create({
-        data: {
-          tableId: id,
-          userId: session.user.id,
-        },
-      });
-    });
-
-    return NextResponse.json({ message: 'Joined table successfully' });
+      return NextResponse.json({ message: 'Joined table successfully' });
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+        return NextResponse.json(
+          { error: 'You have already joined this table' },
+          { status: 400 }
+        );
+      }
+      throw error;
+    }
   }
 
   if (action === 'close') {

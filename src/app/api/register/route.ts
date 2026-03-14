@@ -4,7 +4,14 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, name, role } = await request.json();
+    let body: { email?: string; password?: string; name?: string; role?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
+
+    const { email, password, name, role } = body;
 
     if (!email || !password || !name) {
       return NextResponse.json(

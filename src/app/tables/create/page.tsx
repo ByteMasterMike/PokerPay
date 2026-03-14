@@ -22,7 +22,7 @@ export default function CreateTablePage() {
   const addDenomination = () => {
     setDenominations([
       ...denominations,
-      { label: 'New', color: '#888888', value: 0 },
+      { label: 'New', color: '#888888', value: 1 },
     ]);
   };
 
@@ -38,6 +38,23 @@ export default function CreateTablePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!Number.isFinite(form.maxPlayers) || form.maxPlayers < 2 || form.maxPlayers > 20) {
+      setError('Max players must be between 2 and 20');
+      return;
+    }
+    if (!Number.isFinite(form.buyInAmount) || form.buyInAmount <= 0) {
+      setError('Buy-in amount must be a positive number');
+      return;
+    }
+    const invalidDenom = denominations.find(
+      (d) => !Number.isFinite(d.value) || d.value <= 0
+    );
+    if (invalidDenom) {
+      setError('Each chip denomination must have a positive value');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -88,7 +105,10 @@ export default function CreateTablePage() {
                 type="number"
                 className="form-input"
                 value={form.maxPlayers}
-                onChange={(e) => setForm({ ...form, maxPlayers: Number(e.target.value) })}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setForm({ ...form, maxPlayers: Number.isFinite(v) ? v : 9 });
+                }}
                 min={2}
                 max={20}
                 required
@@ -102,7 +122,10 @@ export default function CreateTablePage() {
                 type="number"
                 className="form-input"
                 value={form.buyInAmount}
-                onChange={(e) => setForm({ ...form, buyInAmount: Number(e.target.value) })}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setForm({ ...form, buyInAmount: Number.isFinite(v) && v > 0 ? v : 100 });
+                }}
                 min={1}
                 required
               />
@@ -138,7 +161,10 @@ export default function CreateTablePage() {
                     className="form-input"
                     placeholder="Value"
                     value={denom.value}
-                    onChange={(e) => updateDenomination(index, 'value', Number(e.target.value))}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      updateDenomination(index, 'value', Number.isFinite(v) && v > 0 ? v : 1);
+                    }}
                     min={0.01}
                     step={0.01}
                     required

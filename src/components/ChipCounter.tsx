@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function ChipCounter({ 
@@ -18,11 +18,22 @@ export default function ChipCounter({
   const [breakdown, setBreakdown] = useState<{ color: string, count: number, value: number }[]>([]);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    return () => {
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview);
+      }
+    };
+  }, [photoPreview]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
+      setPhotoPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(selectedFile);
+      });
       setFile(selectedFile);
-      setPhotoPreview(URL.createObjectURL(selectedFile));
       setResultVal(null);
       setBreakdown([]);
       setError('');
@@ -76,7 +87,11 @@ export default function ChipCounter({
 
       setResultVal(null);
       setFile(null);
-      setPhotoPreview(null);
+      setPhotoPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setIsProcessing(false);
       if (onSuccess) onSuccess();
       router.refresh();
     } catch (err: unknown) {
@@ -112,7 +127,17 @@ export default function ChipCounter({
               <div>
                 <img src={photoPreview} alt="Chips preview" style={{ maxWidth: '100%', borderRadius: 'var(--radius-lg)', maxHeight: '300px', objectFit: 'cover', border: '1px solid var(--color-border)' }} />
                 <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
-                  <button className="btn btn-secondary btn-block" onClick={() => setPhotoPreview(null)}>Change Photo</button>
+                  <button
+                  className="btn btn-secondary btn-block"
+                  onClick={() => {
+                    setPhotoPreview((prev) => {
+                      if (prev) URL.revokeObjectURL(prev);
+                      return null;
+                    });
+                  }}
+                >
+                  Change Photo
+                </button>
                   <button className="btn btn-primary btn-block" onClick={handleScanChips}>Analyze Stack</button>
                 </div>
               </div>

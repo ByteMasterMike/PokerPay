@@ -11,13 +11,12 @@ export default function TablePageWrapper({ params }: { params: Promise<{ id: str
 }
 
 async function TablePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
 
   if (!session?.user) {
-    redirect('/auth/login');
+    redirect(`/auth/login?callbackUrl=${encodeURIComponent(`/tables/${id}`)}`);
   }
-
-  const { id } = await params;
 
   const table = await prisma.table.findUnique({
     where: { id },

@@ -15,7 +15,7 @@ export default async function DashboardPage() {
   const isOrganizer = session.user.role === 'ORGANIZER';
 
   // Fetch data in parallel
-  const [dbUser, organizedTables, joinedTables, ledgerEntries] = await Promise.all([
+  const [dbUser, organizedTables, joinedTables, ledgerEntries, pnlAggregate] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { balance: true },
@@ -37,10 +37,17 @@ export default async function DashboardPage() {
       orderBy: { createdAt: 'desc' },
       take: 5,
     }),
+    prisma.ledgerEntry.aggregate({
+      where: {
+        userId,
+        type: { not: 'DEPOSIT' },
+      },
+      _sum: { amount: true },
+    }),
   ]);
 
   const balance = dbUser?.balance || 0;
-  const totalPnL = ledgerEntries.reduce((acc, entry) => acc + (entry.type !== 'DEPOSIT' ? entry.amount : 0), 0);
+  const totalPnL = pnlAggregate._sum.amount ?? 0;
 
   return (
     <div className="container page">
