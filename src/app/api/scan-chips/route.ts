@@ -31,6 +31,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Table not found' }, { status: 404 });
     }
 
+    // Authorization: only active players at this table can scan chips
+    const tablePlayer = await prisma.tablePlayer.findUnique({
+      where: {
+        tableId_userId: { tableId, userId: session.user.id },
+      },
+    });
+    if (!tablePlayer || tablePlayer.status !== 'ACTIVE') {
+      return NextResponse.json(
+        { error: 'You are not an active player at this table' },
+        { status: 403 }
+      );
+    }
+
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
         { error: 'Gemini API key not configured' },
@@ -93,14 +106,16 @@ If no chips are visible or the image is unclear, return an empty array: []`;
     const chips: Array<{ label: string; color: string; value: number; count: number }> =
       JSON.parse(jsonMatch[0]);
 
-    // Validate and filter
+    // Validate and filter — cross-check values against known table denominations
+    const knownValues = new Set(table.chipDenominations.map((d) => Number(d.value)));
     const validChips = chips.filter(
       (c) =>
         typeof c.label === 'string' &&
         typeof c.color === 'string' &&
         typeof c.value === 'number' &&
         typeof c.count === 'number' &&
-        c.count > 0
+        c.count > 0 &&
+        knownValues.has(c.value) // only accept values matching this table's denominations
     );
 
     const total = validChips.reduce((sum, c) => sum + c.value * c.count, 0);

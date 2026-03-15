@@ -23,6 +23,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
     }
 
+    // Hard cap — this is a mock payment; real Stripe would enforce this server-side
+    const MAX_DEPOSIT = 10000;
+    if (amount > MAX_DEPOSIT) {
+      return NextResponse.json(
+        { error: `Maximum single deposit is $${MAX_DEPOSIT}` },
+        { status: 400 }
+      );
+    }
+
     // Mock Stripe checkout processing...
     // In a real app, this would create a Stripe Checkout Session or PaymentIntent
     // and verify the payment via webhooks before crediting the account.

@@ -6,6 +6,12 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Require authentication — table data is not public
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { id } = await params;
 
   const table = await prisma.table.findUnique({
@@ -24,6 +30,13 @@ export async function GET(
 
   if (!table) {
     return NextResponse.json({ error: 'Table not found' }, { status: 404 });
+  }
+
+  // Only organizer or joined players can see full table details
+  const isOrganizer = table.organizerId === session.user.id;
+  const isPlayer = table.players.some((p) => p.userId === session.user.id);
+  if (!isOrganizer && !isPlayer) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   return NextResponse.json(table);

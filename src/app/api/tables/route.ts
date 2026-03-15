@@ -20,7 +20,7 @@ export async function GET() {
       chipDenominations: true,
       players: {
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: { id: true, name: true } },
         },
       },
       _count: { select: { players: true } },
@@ -55,6 +55,22 @@ export async function POST(request: NextRequest) {
     if (!name || !buyInAmount || !chipDenominations?.length) {
       return NextResponse.json(
         { error: 'Name, buy-in amount, and chip denominations are required' },
+        { status: 400 }
+      );
+    }
+
+    // Name length limits
+    if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 100) {
+      return NextResponse.json(
+        { error: 'Table name must be between 2 and 100 characters' },
+        { status: 400 }
+      );
+    }
+
+    // Cap chip denominations to prevent abuse
+    if (chipDenominations.length > 20) {
+      return NextResponse.json(
+        { error: 'Maximum of 20 chip denominations allowed' },
         { status: 400 }
       );
     }

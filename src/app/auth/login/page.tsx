@@ -9,8 +9,13 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawCallback = searchParams.get('callbackUrl');
+  // Strict validation: must start with / but not // or /\ (open redirect prevention)
   const callbackUrl =
-    rawCallback && rawCallback.startsWith('/') && !rawCallback.startsWith('//')
+    rawCallback &&
+    rawCallback.startsWith('/') &&
+    !rawCallback.startsWith('//') &&
+    !rawCallback.startsWith('/\\') &&
+    /^\/[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=%]*$/.test(rawCallback)
       ? rawCallback
       : '/dashboard';
   const [form, setForm] = useState({

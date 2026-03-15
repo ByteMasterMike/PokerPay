@@ -21,11 +21,11 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
   const table = await prisma.table.findUnique({
     where: { id },
     include: {
-      organizer: { select: { id: true, name: true, email: true } },
+      organizer: { select: { id: true, name: true } },
       chipDenominations: { orderBy: { value: 'asc' } },
       players: {
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: { id: true, name: true } },
         },
         orderBy: { joinedAt: 'asc' },
       },
@@ -65,7 +65,7 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
                 {table.players.length} / {table.maxPlayers} Players
               </span>
               <span className="badge badge-secondary">
-                Buy-in: ${table.buyInAmount}
+                Buy-in: ${Number(table.buyInAmount)}
               </span>
             </div>
           </div>
@@ -111,7 +111,7 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
                   <div key={chip.id} className="chip-item" style={{ textAlign: 'center' }}>
                     <div className="chip-circle" style={{ backgroundColor: chip.color, width: '60px', height: '60px', borderRadius: '50%', margin: '0 auto', border: '2px solid rgba(255,255,255,0.2)' }}></div>
                     <div className="chip-label" style={{ marginTop: '0.5rem', fontWeight: 500 }}>{chip.label}</div>
-                    <div className="chip-val">${chip.value}</div>
+                    <div className="chip-val">${Number(chip.value)}</div>
                   </div>
                 ))}
               </div>
@@ -127,7 +127,7 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
             isOrganizer={isOrganizer}
             isPlayer={isPlayer}
             isFull={table.players.length >= table.maxPlayers}
-            chipDenominations={table.chipDenominations}
+            chipDenominations={table.chipDenominations.map(d => ({ ...d, value: Number(d.value) }))}
           />
         </div>
       </div>

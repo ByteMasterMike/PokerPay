@@ -46,8 +46,8 @@ export default async function DashboardPage() {
     }),
   ]);
 
-  const balance = dbUser?.balance || 0;
-  const totalPnL = pnlAggregate._sum.amount ?? 0;
+  const balance = Number(dbUser?.balance ?? 0);
+  const totalPnL = Number(pnlAggregate._sum.amount ?? 0);
 
   return (
     <div className="container page">
@@ -107,7 +107,7 @@ export default async function DashboardPage() {
                         </div>
                         <div className="table-card-meta-item">
                           <span className="table-card-meta-label">Buy-in</span>
-                          <span className="table-card-meta-value">${table.buyInAmount}</span>
+                          <span className="table-card-meta-value">${Number(table.buyInAmount)}</span>
                         </div>
                       </div>
                     </Link>
@@ -140,7 +140,7 @@ export default async function DashboardPage() {
                     </div>
                     <div className="table-card-body">
                       <p className="text-sm text-muted">Organized by {table.organizer.name}</p>
-                      <p className="text-sm">Buy-in: ${table.buyInAmount}</p>
+                      <p className="text-sm">Buy-in: ${Number(table.buyInAmount)}</p>
                     </div>
                   </Link>
                 ))}
@@ -164,8 +164,8 @@ export default async function DashboardPage() {
                         {new Date(entry.createdAt).toLocaleDateString()}
                       </div>
                     </div>
-                    <div style={{ fontWeight: 700, color: entry.amount >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
-                      {entry.amount >= 0 ? '+' : ''}${Math.abs(entry.amount).toFixed(2)}
+                    <div style={{ fontWeight: 700, color: Number(entry.amount) >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
+                      {Number(entry.amount) >= 0 ? '+' : ''}${Math.abs(Number(entry.amount)).toFixed(2)}
                     </div>
                   </div>
                 ))}

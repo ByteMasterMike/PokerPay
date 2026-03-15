@@ -20,6 +20,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+    }
+
+    // Enforce minimum password length
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'Password must be at least 8 characters' },
+        { status: 400 }
+      );
+    }
+
+    // Enforce name length
+    if (name.trim().length < 2 || name.trim().length > 100) {
+      return NextResponse.json(
+        { error: 'Name must be between 2 and 100 characters' },
+        { status: 400 }
+      );
+    }
+
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });

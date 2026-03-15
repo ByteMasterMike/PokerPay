@@ -5,6 +5,10 @@ import { Resend } from 'resend';
 
 const TOKEN_EXPIRY_HOURS = 1;
 
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 export async function POST(request: NextRequest) {
   try {
     let body: { email?: string };
@@ -47,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.passwordResetToken.create({
       data: {
-        token,
+        token: hashToken(token), // store hashed — raw token only in the email link
         userId: user.id,
         expiresAt,
       },

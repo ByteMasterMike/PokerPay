@@ -60,10 +60,10 @@ export default async function LedgerPage() {
                   style={{
                     fontWeight: 700,
                     fontSize: 'var(--text-lg)',
-                    color: entry.amount >= 0 ? 'var(--color-success)' : 'var(--color-error)',
+                    color: Number(entry.amount) >= 0 ? 'var(--color-success)' : 'var(--color-error)',
                   }}
                 >
-                  {entry.amount >= 0 ? '+' : ''}${Math.abs(entry.amount).toFixed(2)}
+                  {Number(entry.amount) >= 0 ? '+' : ''}${Math.abs(Number(entry.amount)).toFixed(2)}
                 </div>
               </div>
             ))}

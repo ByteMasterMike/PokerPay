@@ -21,6 +21,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "resend": "^6.9.3",
+    "twilio": "^5.13.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

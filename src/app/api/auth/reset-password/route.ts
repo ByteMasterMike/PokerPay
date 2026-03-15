@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+
+const MIN_PASSWORD_LENGTH = 8;
+
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,15 +27,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!password || typeof password !== 'string' || password.length < 6) {
+    if (!password || typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
       return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
+        { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` },
         { status: 400 }
       );
     }
 
+    // Hash the submitted token to compare with the stored hash
+    const hashedToken = hashToken(token.trim());
+
     const resetToken = await prisma.passwordResetToken.findUnique({
-      where: { token: token.trim() },
+      where: { token: hashedToken },
       include: { user: true },
     });
 

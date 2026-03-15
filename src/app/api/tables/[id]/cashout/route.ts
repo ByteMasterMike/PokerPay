@@ -55,7 +55,7 @@ export async function POST(
       );
     }
 
-    const maxCashout = tablePlayer.table.buyInAmount * MAX_CASHOUT_MULTIPLIER;
+    const maxCashout = Number(tablePlayer.table.buyInAmount) * MAX_CASHOUT_MULTIPLIER;
     if (amount > maxCashout) {
       return NextResponse.json(
         { error: `Cashout amount exceeds maximum of $${maxCashout.toFixed(2)}` },
