@@ -74,7 +74,7 @@ export default async function DashboardPage() {
       </section>
 
       <div className="dashboard-grid">
-        <div style={{ gridColumn: 'span 2' }}>
+        <div>
           <section className="dashboard-section" style={{ marginBottom: 'var(--space-8)' }}>
             <DepositClient currentBalance={balance} />
           </section>

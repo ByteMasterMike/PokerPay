@@ -9,6 +9,11 @@ export const metadata: Metadata = {
     'Eliminate the need for a designated banker at poker tables. QR-code deposits, AI chip counting cashouts, and persistent P&L tracking.',
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
