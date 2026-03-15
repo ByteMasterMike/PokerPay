@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface ChipDenomination {
@@ -10,89 +10,48 @@ interface ChipDenomination {
   value: number;
 }
 
-export default function ChipCounter({ 
+export default function ChipCounter({
   tableId,
   chipDenominations,
-  onSuccess 
-}: { 
+  onSuccess,
+}: {
   tableId: string;
   chipDenominations: ChipDenomination[];
   onSuccess?: () => void;
 }) {
   const router = useRouter();
-  const [file, setFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>(
+    () => Object.fromEntries(chipDenominations.map((d) => [d.id, 0]))
+  );
   const [isProcessing, setIsProcessing] = useState(false);
-  const [resultVal, setResultVal] = useState<number | null>(null);
-  const [breakdown, setBreakdown] = useState<{ color: string; label: string; count: number; value: number }[]>([]);
+  const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    return () => {
-      if (photoPreview) {
-        URL.revokeObjectURL(photoPreview);
-      }
-    };
-  }, [photoPreview]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      setPhotoPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return URL.createObjectURL(selectedFile);
-      });
-      setFile(selectedFile);
-      setResultVal(null);
-      setBreakdown([]);
-      setError('');
-    }
-  };
-
-  const handleScanChips = async () => {
-    if (!file) return;
-
-    setIsProcessing(true);
+  const adjust = (id: string, delta: number) => {
+    setCounts((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) + delta) }));
+    setConfirmed(false);
     setError('');
-
-    try {
-      const formData = new FormData();
-      formData.append('image', file);
-      formData.append('tableId', tableId);
-
-      const res = await fetch('/api/scan-chips', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to scan chips');
-      }
-
-      if (!data.chips || data.chips.length === 0) {
-        throw new Error('No chips detected. Please try a clearer photo with better lighting.');
-      }
-
-      setBreakdown(data.chips);
-      setResultVal(data.total);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to process image. Please try again.');
-    } finally {
-      setIsProcessing(false);
-    }
   };
+
+  const total = chipDenominations.reduce(
+    (sum, d) => sum + d.value * (counts[d.id] ?? 0),
+    0
+  );
+
+  const hasAnyChips = Object.values(counts).some((c) => c > 0);
 
   const handleConfirmCashout = async () => {
-    if (resultVal === null) return;
+    if (!hasAnyChips) {
+      setError('Add at least one chip before cashing out.');
+      return;
+    }
     setIsProcessing(true);
-    
+    setError('');
     try {
       const res = await fetch(`/api/tables/${tableId}/cashout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: resultVal }),
+        body: JSON.stringify({ amount: total }),
       });
 
       if (!res.ok) {
@@ -100,139 +59,237 @@ export default function ChipCounter({
         throw new Error(data.error || 'Cashout failed');
       }
 
-      setResultVal(null);
-      setFile(null);
-      setPhotoPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
-      setIsProcessing(false);
+      setConfirmed(true);
       if (onSuccess) onSuccess();
       router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
       setIsProcessing(false);
     }
   };
 
+  const handleReset = () => {
+    setCounts(Object.fromEntries(chipDenominations.map((d) => [d.id, 0])));
+    setConfirmed(false);
+    setError('');
+  };
+
   return (
-    <div className="card" style={{ marginTop: 'var(--space-4)', border: '1px solid var(--color-gold-glow)', position: 'relative', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-        <div style={{ padding: 'var(--space-2)', background: 'var(--color-gold-glow)', borderRadius: 'var(--radius-md)' }}>
-          <span style={{ fontSize: 'var(--text-xl)' }}>🤖</span>
+    <div
+      className="card"
+      style={{
+        marginTop: 'var(--space-4)',
+        border: '1px solid var(--color-gold-glow)',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-3)',
+          marginBottom: 'var(--space-5)',
+        }}
+      >
+        <div
+          style={{
+            padding: 'var(--space-2)',
+            background: 'var(--color-gold-glow)',
+            borderRadius: 'var(--radius-md)',
+          }}
+        >
+          <span style={{ fontSize: 'var(--text-xl)' }}>🎰</span>
         </div>
         <div>
-          <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, margin: 0, color: 'var(--color-gold)' }}>AI Chip Scanner</h3>
-          <p className="text-xs text-muted">Precision stack calculation via computer vision</p>
+          <h3
+            style={{
+              fontSize: 'var(--text-lg)',
+              fontWeight: 700,
+              margin: 0,
+              color: 'var(--color-gold)',
+            }}
+          >
+            Count Your Chips
+          </h3>
+          <p className="text-xs text-muted">Tap + / − to count each denomination</p>
         </div>
       </div>
 
-      {error && <div className="alert alert-error text-xs">{error}</div>}
+      {error && <div className="alert alert-error text-xs" style={{ marginBottom: 'var(--space-4)' }}>{error}</div>}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-        {!resultVal && !isProcessing && (
-          <div style={{ textAlign: 'center' }}>
-            {!photoPreview ? (
-              <label className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-3)', border: '2px dashed var(--color-border)', cursor: 'pointer', padding: 'var(--space-8)' }}>
-                <span style={{ fontSize: '2.5rem' }}>📸</span>
-                <span style={{ fontWeight: 600 }}>Snap or Upload Photo</span>
-                <input type="file" accept="image/*" capture="environment" onChange={handleFileChange} style={{ display: 'none' }} />
-              </label>
-            ) : (
-              <div>
-                <img src={photoPreview} alt="Chips preview" style={{ maxWidth: '100%', borderRadius: 'var(--radius-lg)', maxHeight: '300px', objectFit: 'cover', border: '1px solid var(--color-border)' }} />
-                <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
-                  <button
-                  className="btn btn-secondary btn-block"
-                  onClick={() => {
-                    setPhotoPreview((prev) => {
-                      if (prev) URL.revokeObjectURL(prev);
-                      return null;
-                    });
+      {confirmed && (
+        <div className="alert alert-success text-sm" style={{ marginBottom: 'var(--space-4)' }}>
+          Cashout successful!
+        </div>
+      )}
+
+      {/* Chip rows */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        {chipDenominations.map((d) => {
+          const count = counts[d.id] ?? 0;
+          const subtotal = d.value * count;
+          return (
+            <div
+              key={d.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)',
+                padding: 'var(--space-3)',
+                background: 'rgba(0,0,0,0.25)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {/* Chip swatch */}
+              <div
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  background: d.color,
+                  border: '2px solid rgba(255,255,255,0.25)',
+                  flexShrink: 0,
+                  boxShadow: `0 0 8px ${d.color}55`,
+                }}
+              />
+
+              {/* Label + value */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{d.label}</div>
+                <div className="text-xs text-muted">${d.value.toFixed(2)} each</div>
+              </div>
+
+              {/* Subtotal */}
+              <div
+                style={{
+                  minWidth: '60px',
+                  textAlign: 'right',
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 700,
+                  color: subtotal > 0 ? 'var(--color-success)' : 'var(--color-text-muted)',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                ${subtotal.toFixed(2)}
+              </div>
+
+              {/* Counter controls */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-2)',
+                  flexShrink: 0,
+                }}
+              >
+                <button
+                  onClick={() => adjust(d.id, -1)}
+                  disabled={count === 0 || isProcessing}
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-text)',
+                    fontSize: '1.2rem',
+                    cursor: count === 0 ? 'not-allowed' : 'pointer',
+                    opacity: count === 0 ? 0.4 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    lineHeight: 1,
                   }}
                 >
-                  Change Photo
+                  −
                 </button>
-                  <button className="btn btn-primary btn-block" onClick={handleScanChips}>Analyze Stack</button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {isProcessing && !resultVal && (
-          <div style={{ textAlign: 'center', padding: 'var(--space-8)', position: 'relative' }}>
-            {photoPreview && (
-              <div style={{ position: 'relative', marginBottom: 'var(--space-6)' }}>
-                <img src={photoPreview} alt="Scanning" style={{ maxWidth: '100%', borderRadius: 'var(--radius-lg)', maxHeight: '300px', opacity: 0.5 }} />
-                <div className="scanning-line" style={{ 
-                  position: 'absolute', 
-                  top: 0, 
-                  left: 0, 
-                  width: '100%', 
-                  height: '2px', 
-                  background: 'var(--color-gold)', 
-                  boxShadow: '0 0 15px var(--color-gold)',
-                  animation: 'scan 2s linear infinite'
-                }}></div>
-              </div>
-            )}
-            <div className="spinner" style={{ margin: '0 auto var(--space-4)', width: '30px', height: '30px', color: 'var(--color-gold)' }}></div>
-            <p className="text-sm font-bold" style={{ color: 'var(--color-gold)' }}>Running Neural Network...</p>
-            <p className="text-xs text-muted">Isolating chips and calculating denominations</p>
-            
-            <style jsx>{`
-              @keyframes scan {
-                0% { top: 0; }
-                50% { top: 100%; }
-                100% { top: 0; }
-              }
-            `}</style>
-          </div>
-        )}
-
-        {resultVal !== null && (
-          <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-5)', border: '1px solid var(--color-border-light)' }}>
-            <div style={{ textAlign: 'center', marginBottom: 'var(--space-6)' }}>
-              <div className="text-xs text-muted uppercase tracking-wider font-bold mb-1">Total Detected Value</div>
-              <div style={{ fontSize: 'var(--text-4xl)', fontWeight: 900, color: 'var(--color-success)' }}>
-                ${resultVal.toFixed(2)}
+                <span
+                  style={{
+                    minWidth: '28px',
+                    textAlign: 'center',
+                    fontWeight: 700,
+                    fontSize: 'var(--text-base)',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {count}
+                </span>
+                <button
+                  onClick={() => adjust(d.id, 1)}
+                  disabled={isProcessing}
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--color-gold)',
+                    background: 'var(--color-gold-glow)',
+                    color: 'var(--color-gold)',
+                    fontSize: '1.2rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    lineHeight: 1,
+                  }}
+                >
+                  +
+                </button>
               </div>
             </div>
+          );
+        })}
+      </div>
 
-            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-4)' }}>
-              <div className="text-xs text-muted mb-3 font-bold">Detection Breakdown:</div>
-              {breakdown.map((item, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: item.color, border: '1px solid rgba(255,255,255,0.2)' }}></div>
-                    <span className="text-sm">{item.count} x {item.label} (${item.value}) Chips</span>
-                  </div>
-                  <span className="text-sm font-bold text-success">${(item.count * item.value).toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
+      {/* Total */}
+      <div
+        style={{
+          marginTop: 'var(--space-5)',
+          padding: 'var(--space-4)',
+          background: 'rgba(0,0,0,0.35)',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--color-border-light)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <span className="text-sm text-muted font-bold uppercase tracking-wider">Total Stack</span>
+        <span
+          style={{
+            fontSize: 'var(--text-3xl)',
+            fontWeight: 900,
+            color: total > 0 ? 'var(--color-success)' : 'var(--color-text-muted)',
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          ${total.toFixed(2)}
+        </span>
+      </div>
 
-            <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-8)' }}>
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => { setResultVal(null); setBreakdown([]); }}
-                disabled={isProcessing}
-                style={{ flex: 1 }}
-              >
-                Retake
-              </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={handleConfirmCashout}
-                disabled={isProcessing}
-                style={{ flex: 2, background: 'var(--color-success)', borderColor: 'var(--color-success)' }}
-              >
-                {isProcessing ? 'Processing...' : 'Confirm Cashout'}
-              </button>
-            </div>
-          </div>
-        )}
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
+        <button
+          className="btn btn-secondary"
+          onClick={handleReset}
+          disabled={isProcessing || !hasAnyChips}
+          style={{ flex: 1 }}
+        >
+          Reset
+        </button>
+        <button
+          className="btn btn-primary"
+          onClick={handleConfirmCashout}
+          disabled={isProcessing || !hasAnyChips}
+          style={{
+            flex: 2,
+            background: 'var(--color-success)',
+            borderColor: 'var(--color-success)',
+          }}
+        >
+          {isProcessing ? 'Processing...' : `Cash Out $${total.toFixed(2)}`}
+        </button>
       </div>
     </div>
   );
