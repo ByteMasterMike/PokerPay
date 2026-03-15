@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     const mimeType = image.type || 'image/jpeg';
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
     const denominationList = table.chipDenominations
       .map((d) => `- ${d.label} chip (color: ${d.color}, value: $${d.value})`)
@@ -93,10 +93,12 @@ If no chips are visible or the image is unclear, return an empty array: []`;
     ]);
 
     const responseText = result.response.text().trim();
+    console.log('[scan-chips] Gemini raw response:', responseText);
 
     // Parse JSON from response — strip any accidental markdown
     const jsonMatch = responseText.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
+      console.error('[scan-chips] No JSON array found in response:', responseText);
       return NextResponse.json(
         { error: 'Could not parse chip data from image. Please try a clearer photo.' },
         { status: 422 }
@@ -106,23 +108,31 @@ If no chips are visible or the image is unclear, return an empty array: []`;
     const chips: Array<{ label: string; color: string; value: number; count: number }> =
       JSON.parse(jsonMatch[0]);
 
+    console.log('[scan-chips] Parsed chips:', chips);
+    console.log('[scan-chips] Known denomination values:', table.chipDenominations.map(d => Number(d.value)));
+
     // Validate and filter — cross-check values against known table denominations
-    const knownValues = new Set(table.chipDenominations.map((d) => Number(d.value)));
-    const validChips = chips.filter(
-      (c) =>
-        typeof c.label === 'string' &&
-        typeof c.color === 'string' &&
-        typeof c.value === 'number' &&
-        typeof c.count === 'number' &&
-        c.count > 0 &&
-        knownValues.has(c.value) // only accept values matching this table's denominations
-    );
+    // Use tolerance comparison to handle float/decimal precision differences
+    const knownValues = table.chipDenominations.map((d) => Number(d.value));
+    const validChips = chips.filter((c) => {
+      if (
+        typeof c.label !== 'string' ||
+        typeof c.color !== 'string' ||
+        typeof c.value !== 'number' ||
+        typeof c.count !== 'number' ||
+        c.count <= 0
+      ) return false;
+      // Accept if within 0.001 of a known denomination value
+      return knownValues.some((v) => Math.abs(v - c.value) < 0.001);
+    });
+
+    console.log('[scan-chips] Valid chips after filter:', validChips);
 
     const total = validChips.reduce((sum, c) => sum + c.value * c.count, 0);
 
     return NextResponse.json({ chips: validChips, total });
   } catch (error) {
-    console.error('Chip scan error:', error);
+    console.error('[scan-chips] Error:', error instanceof Error ? error.message : error);
     return NextResponse.json(
       { error: 'Failed to scan chips. Please try again with a clearer photo.' },
       { status: 500 }
