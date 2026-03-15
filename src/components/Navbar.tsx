@@ -20,6 +20,9 @@ export default function Navbar() {
               <Link href="/dashboard" className="navbar-link">
                 Dashboard
               </Link>
+              <Link href="/tables/join" className="navbar-link">
+                Join Table
+              </Link>
               <div className="navbar-user">
                 <span className="navbar-user-role">
                   {(session.user as { role?: string }).role || 'PLAYER'}

@@ -4,18 +4,27 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ChipCounter from '@/components/ChipCounter';
 
+interface ChipDenomination {
+  id: string;
+  label: string;
+  color: string;
+  value: number;
+}
+
 export default function TableActions({
   tableId,
   status,
   isOrganizer,
   isPlayer,
   isFull,
+  chipDenominations,
 }: {
   tableId: string;
   status: string;
   isOrganizer: boolean;
   isPlayer: boolean;
   isFull: boolean;
+  chipDenominations: ChipDenomination[];
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -105,7 +114,11 @@ export default function TableActions({
       </div>
 
       {showCashout && (
-        <ChipCounter tableId={tableId} onSuccess={() => setShowCashout(false)} />
+        <ChipCounter
+          tableId={tableId}
+          chipDenominations={chipDenominations}
+          onSuccess={() => setShowCashout(false)}
+        />
       )}
     </div>
   );

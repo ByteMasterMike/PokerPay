@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { Resend } from 'resend';
 
 const TOKEN_EXPIRY_HOURS = 1;
 
@@ -55,14 +56,34 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
     const resetUrl = `${baseUrl}/auth/reset-password?token=${token}`;
 
-    // Send email: integrate Resend, SendGrid, etc. when RESEND_API_KEY or similar is set.
-    // Until then, in development we log the link for testing.
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.RESEND_API_KEY) {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const { error: sendError } = await resend.emails.send({
+        from: 'PokerPay <onboarding@resend.dev>',
+        to: normalizedEmail,
+        subject: 'Reset your PokerPay password',
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+            <h2 style="color: #C9A84C;">PokerPay — Password Reset</h2>
+            <p>Hi ${user.name},</p>
+            <p>We received a request to reset your PokerPay password. Click the button below to set a new password. This link expires in <strong>1 hour</strong>.</p>
+            <a href="${resetUrl}" style="display: inline-block; margin: 24px 0; padding: 12px 24px; background: #C9A84C; color: #000; text-decoration: none; border-radius: 6px; font-weight: bold;">
+              Reset Password
+            </a>
+            <p style="color: #888; font-size: 13px;">If you didn't request a password reset, you can safely ignore this email. Your password will not change.</p>
+            <p style="color: #888; font-size: 13px;">Or copy this link into your browser:<br/><a href="${resetUrl}" style="color: #C9A84C;">${resetUrl}</a></p>
+          </div>
+        `,
+      });
+
+      if (sendError) {
+        console.error('[Password Reset] Resend error:', sendError);
+      } else {
+        console.log('[Password Reset] Email sent to', normalizedEmail);
+      }
+    } else {
+      // Fallback: log for dev testing
       console.log('[Password Reset] Link for', normalizedEmail, ':', resetUrl);
-    } else if (!process.env.RESEND_API_KEY && !process.env.SENDGRID_API_KEY) {
-      console.warn(
-        '[Password Reset] No email provider configured. Set RESEND_API_KEY or SENDGRID_API_KEY and integrate sending in forgot-password route.'
-      );
     }
 
     return NextResponse.json(successResponse);

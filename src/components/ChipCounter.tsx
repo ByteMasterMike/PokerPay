@@ -3,19 +3,28 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+interface ChipDenomination {
+  id: string;
+  label: string;
+  color: string;
+  value: number;
+}
+
 export default function ChipCounter({ 
-  tableId, 
+  tableId,
+  chipDenominations,
   onSuccess 
 }: { 
-  tableId: string, 
-  onSuccess?: () => void 
+  tableId: string;
+  chipDenominations: ChipDenomination[];
+  onSuccess?: () => void;
 }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [resultVal, setResultVal] = useState<number | null>(null);
-  const [breakdown, setBreakdown] = useState<{ color: string, count: number, value: number }[]>([]);
+  const [breakdown, setBreakdown] = useState<{ color: string; label: string; count: number; value: number }[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -47,23 +56,29 @@ export default function ChipCounter({
     setError('');
 
     try {
-      // Simulate AI processing time
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // MOCK: Generate a realistic chip breakdown
-      const mockBreakdown = [
-        { color: '#FF0000', count: Math.floor(Math.random() * 10) + 5, value: 5 },
-        { color: '#00FF00', count: Math.floor(Math.random() * 5) + 2, value: 25 },
-        { color: '#000000', count: Math.floor(Math.random() * 3) + 1, value: 100 },
-      ];
-      
-      const calculatedValue = mockBreakdown.reduce((acc, chip) => acc + (chip.count * chip.value), 0);
-      
-      setBreakdown(mockBreakdown);
-      setResultVal(calculatedValue);
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('tableId', tableId);
 
-    } catch (err) {
-      setError('Failed to process image. Please try again.');
+      const res = await fetch('/api/scan-chips', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to scan chips');
+      }
+
+      if (!data.chips || data.chips.length === 0) {
+        throw new Error('No chips detected. Please try a clearer photo with better lighting.');
+      }
+
+      setBreakdown(data.chips);
+      setResultVal(data.total);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to process image. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -191,9 +206,9 @@ export default function ChipCounter({
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: item.color, border: '1px solid rgba(255,255,255,0.2)' }}></div>
-                    <span className="text-sm">{item.count} x ${item.value} Chips</span>
+                    <span className="text-sm">{item.count} x {item.label} (${item.value}) Chips</span>
                   </div>
-                  <span className="text-sm font-bold text-success">${item.count * item.value}</span>
+                  <span className="text-sm font-bold text-success">${(item.count * item.value).toFixed(2)}</span>
                 </div>
               ))}
             </div>

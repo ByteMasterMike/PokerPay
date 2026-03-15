@@ -127,6 +127,7 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
             isOrganizer={isOrganizer}
             isPlayer={isPlayer}
             isFull={table.players.length >= table.maxPlayers}
+            chipDenominations={table.chipDenominations}
           />
         </div>
       </div>
