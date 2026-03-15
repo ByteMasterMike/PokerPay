@@ -33,6 +33,13 @@ export default function ChipCounter({
     setError('');
   };
 
+  const setCount = (id: string, raw: string) => {
+    const parsed = parseInt(raw, 10);
+    setCounts((prev) => ({ ...prev, [id]: isNaN(parsed) ? 0 : Math.max(0, parsed) }));
+    setConfirmed(false);
+    setError('');
+  };
+
   const total = chipDenominations.reduce(
     (sum, d) => sum + d.value * (counts[d.id] ?? 0),
     0
@@ -205,17 +212,27 @@ export default function ChipCounter({
                 >
                   −
                 </button>
-                <span
+                <input
+                  type="number"
+                  min={0}
+                  value={count === 0 ? '' : count}
+                  placeholder="0"
+                  onChange={(e) => setCount(d.id, e.target.value)}
+                  disabled={isProcessing}
                   style={{
-                    minWidth: '28px',
+                    width: '48px',
+                    height: '34px',
                     textAlign: 'center',
                     fontWeight: 700,
                     fontSize: 'var(--text-base)',
                     fontFamily: 'var(--font-mono)',
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border-light)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--color-text)',
+                    padding: '0 4px',
                   }}
-                >
-                  {count}
-                </span>
+                />
                 <button
                   onClick={() => adjust(d.id, 1)}
                   disabled={isProcessing}
