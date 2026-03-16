@@ -2,9 +2,15 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
+import { Suspense } from 'react';
+import { TrendingUp, Users, Plus, ArrowRight, Clock } from 'lucide-react';
 import DepositClient from './DepositClient';
 import TableFilter from '@/components/TableFilter';
-import { Suspense } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { StaggerContainer, StaggerItem, FadeIn } from '@/components/FadeIn';
 
 type FilterValue = 'all' | 'open' | 'closed';
 
@@ -17,23 +23,14 @@ export default async function DashboardPage({
   const filter: FilterValue = rawFilter === 'all' || rawFilter === 'closed' ? rawFilter : 'open';
 
   const session = await auth();
-
-  if (!session?.user) {
-    redirect('/auth/login');
-  }
+  if (!session?.user) redirect('/auth/login');
 
   const userId = session.user.id;
-  // Fetch data in parallel
+
   const [dbUser, organizedTables, joinedTables, ledgerEntries, pnlAggregate] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { balance: true },
-    }),
+    prisma.user.findUnique({ where: { id: userId }, select: { balance: true } }),
     prisma.table.findMany({
-      where: {
-        organizerId: userId,
-        ...(filter !== 'all' ? { status: filter.toUpperCase() } : {}),
-      },
+      where: { organizerId: userId, ...(filter !== 'all' ? { status: filter.toUpperCase() } : {}) },
       include: { _count: { select: { players: true } } },
       orderBy: { createdAt: 'desc' },
     }),
@@ -42,118 +39,159 @@ export default async function DashboardPage({
       include: { table: { include: { organizer: true } } },
       orderBy: { joinedAt: 'desc' },
     }),
-    prisma.ledgerEntry.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    }),
+    prisma.ledgerEntry.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 5 }),
     prisma.ledgerEntry.aggregate({
-      where: {
-        userId,
-        type: { not: 'DEPOSIT' },
-      },
+      where: { userId, type: { not: 'DEPOSIT' } },
       _sum: { amount: true },
     }),
   ]);
 
-  const balance = Number(dbUser?.balance ?? 0);
+  const balance  = Number(dbUser?.balance ?? 0);
   const totalPnL = Number(pnlAggregate._sum.amount ?? 0);
 
   return (
-    <div className="container page">
-      <header className="page-header">
-        <h1>Dashboard</h1>
-        <p>Welcome back, {session.user.name}</p>
+    <div className="container py-10">
+      {/* Page header */}
+      <header className="mb-10">
+        <h1 className="font-display text-4xl font-extrabold tracking-tight text-foreground">
+          Dashboard
+        </h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Welcome back, <span className="font-semibold text-foreground">{session.user.name}</span>
+        </p>
       </header>
 
-      <section className="dashboard-stats">
-        <div className="stat-card">
-          <div className="stat-value">${balance.toFixed(2)}</div>
-          <div className="stat-label">Current Balance</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value" style={{ color: totalPnL >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
-            {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
-          </div>
-          <div className="stat-label">Net Profit/Loss</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{joinedTables.length}</div>
-          <div className="stat-label">Active Sessions</div>
-        </div>
-      </section>
+      {/* Stat cards */}
+      <StaggerContainer className="mb-10 grid gap-4 sm:grid-cols-3">
+        <StaggerItem>
+          <Card className="border-border/60 bg-card">
+            <CardContent className="p-5">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Balance</p>
+              <p className="mt-1 font-mono text-3xl font-bold text-foreground">${balance.toFixed(2)}</p>
+            </CardContent>
+          </Card>
+        </StaggerItem>
 
-      <div className="dashboard-grid">
-        <div>
-          <section className="dashboard-section" style={{ marginBottom: 'var(--space-8)' }}>
-            <DepositClient currentBalance={balance} />
-          </section>
+        <StaggerItem>
+          <Card className="border-border/60 bg-card">
+            <CardContent className="p-5">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Net P&amp;L</p>
+              <p className={`mt-1 font-mono text-3xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
+        </StaggerItem>
 
-          <section className="dashboard-section" style={{ marginBottom: 'var(--space-8)' }}>
-            <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
-              <h2>Tables You&apos;re Hosting</h2>
-              <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap' }}>
+        <StaggerItem>
+          <Card className="border-border/60 bg-card">
+            <CardContent className="p-5">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <Users className="inline h-3 w-3 mr-1" />Sessions
+              </p>
+              <p className="mt-1 font-mono text-3xl font-bold text-foreground">{joinedTables.length}</p>
+            </CardContent>
+          </Card>
+        </StaggerItem>
+      </StaggerContainer>
+
+      {/* Main grid */}
+      <FadeIn delay={0.2}>
+      <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
+
+        {/* Left column */}
+        <div className="space-y-8">
+          <DepositClient currentBalance={balance} />
+
+          {/* Tables you're hosting */}
+          <section>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-lg font-bold">Tables You&apos;re Hosting</h2>
+              <div className="flex items-center gap-2">
                 <Suspense>
                   <TableFilter current={filter} />
                 </Suspense>
-                <Link href="/tables/create" className="btn btn-primary btn-sm">+ Host a Game</Link>
+                <Link href="/tables/create">
+                  <Button size="sm" className="gap-1">
+                    <Plus className="h-3.5 w-3.5" />
+                    Host a Game
+                  </Button>
+                </Link>
               </div>
             </div>
 
             {organizedTables.length === 0 ? (
-              <div className="card text-center" style={{ padding: 'var(--space-10)' }}>
-                <p className="text-muted">You&apos;re not currently hosting any tables.</p>
-                <Link href="/tables/create" className="btn btn-primary mt-4" style={{ marginTop: 'var(--space-4)', display: 'inline-block' }}>Host a Game</Link>
-              </div>
+              <Card className="border-dashed border-border/60 bg-card/50">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <p className="text-sm text-muted-foreground">You&apos;re not hosting any tables right now.</p>
+                  <Link href="/tables/create" className="mt-4">
+                    <Button variant="outline" size="sm">Host a Game</Button>
+                  </Link>
+                </CardContent>
+              </Card>
             ) : (
-              <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
+              <div className="space-y-3">
                 {organizedTables.map((table) => (
-                  <Link href={`/tables/${table.id}`} key={table.id} className="table-card">
-                    <div className="table-card-header">
-                      <div className="table-card-name">{table.name}</div>
-                      <span className={`badge ${table.status === 'OPEN' ? 'badge-open' : 'badge-closed'}`}>
-                        {table.status}
-                      </span>
-                    </div>
-                    <div className="table-card-meta">
-                      <div className="table-card-meta-item">
-                        <span className="table-card-meta-label">Players</span>
-                        <span className="table-card-meta-value">{table._count.players} / {table.maxPlayers}</span>
-                      </div>
-                      <div className="table-card-meta-item">
-                        <span className="table-card-meta-label">Buy-in</span>
-                        <span className="table-card-meta-value">${Number(table.buyInAmount)}</span>
-                      </div>
-                    </div>
+                  <Link href={`/tables/${table.id}`} key={table.id} className="block no-underline group">
+                    <Card className="border-border/60 bg-card transition-all duration-200 hover:border-primary/40 hover:shadow-[0_0_0_1px_rgba(249,115,22,0.15)] hover:-translate-y-0.5">
+                      <CardContent className="flex items-center justify-between p-5">
+                        <div>
+                          <p className="font-display font-bold text-foreground group-hover:text-primary transition-colors">
+                            {table.name}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground font-mono">
+                            {table._count.players}/{table.maxPlayers} players · ${Number(table.buyInAmount)} buy-in
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant={table.status === 'OPEN' ? 'success' : 'secondary'}>
+                            {table.status}
+                          </Badge>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                        </div>
+                      </CardContent>
+                    </Card>
                   </Link>
                 ))}
               </div>
             )}
           </section>
 
-          <section className="dashboard-section">
-            <div className="section-header" style={{ marginBottom: 'var(--space-4)' }}>
-              <h2>Active Game Sessions</h2>
-            </div>
+          {/* Active sessions */}
+          <section>
+            <h2 className="mb-4 font-display text-lg font-bold">Active Game Sessions</h2>
+
             {joinedTables.length === 0 ? (
-              <div className="card text-center" style={{ padding: 'var(--space-10)' }}>
-                <p className="text-muted">You are not currently in any games.</p>
-                <Link href="/tables/join" className="btn btn-primary mt-4" style={{ marginTop: 'var(--space-4)', display: 'inline-block' }}>Join a Table</Link>
-              </div>
+              <Card className="border-dashed border-border/60 bg-card/50">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <p className="text-sm text-muted-foreground">You&apos;re not in any active sessions.</p>
+                  <Link href="/tables/join" className="mt-4">
+                    <Button variant="outline" size="sm">Join a Table</Button>
+                  </Link>
+                </CardContent>
+              </Card>
             ) : (
-              <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
+              <div className="space-y-3">
                 {joinedTables.map(({ table, status }) => (
-                  <Link href={`/tables/${table.id}`} key={table.id} className="table-card">
-                    <div className="table-card-header">
-                      <div className="table-card-name">{table.name}</div>
-                      <span className={`badge ${status === 'ACTIVE' ? 'badge-gold' : 'badge-neutral'}`}>
-                        {status}
-                      </span>
-                    </div>
-                    <div className="table-card-body">
-                      <p className="text-sm text-muted">Organized by {table.organizer.name}</p>
-                      <p className="text-sm">Buy-in: ${Number(table.buyInAmount)}</p>
-                    </div>
+                  <Link href={`/tables/${table.id}`} key={table.id} className="block no-underline group">
+                    <Card className="border-border/60 bg-card transition-all duration-200 hover:border-primary/40 hover:shadow-[0_0_0_1px_rgba(249,115,22,0.15)] hover:-translate-y-0.5">
+                      <CardContent className="flex items-center justify-between p-5">
+                        <div>
+                          <p className="font-display font-bold text-foreground group-hover:text-primary transition-colors">
+                            {table.name}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Organized by {table.organizer.name} · ${Number(table.buyInAmount)} buy-in
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant={status === 'ACTIVE' ? 'default' : 'secondary'}>
+                            {status}
+                          </Badge>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                        </div>
+                      </CardContent>
+                    </Card>
                   </Link>
                 ))}
               </div>
@@ -161,34 +199,52 @@ export default async function DashboardPage({
           </section>
         </div>
 
-        <div className="sidebar">
-          <section className="card" style={{ height: 'fit-content' }}>
-            <h3 style={{ marginBottom: 'var(--space-4)', color: 'var(--color-gold)' }}>Recent Activity</h3>
-            {ledgerEntries.length === 0 ? (
-              <p className="text-sm text-muted">No recent transactions.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                {ledgerEntries.map((entry) => (
-                  <div key={entry.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 'var(--space-3)', borderBottom: '1px solid var(--color-border)' }}>
-                    <div>
-                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{entry.type.replace('_', ' ')}</div>
-                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                        {new Date(entry.createdAt).toLocaleDateString()}
+        {/* Sidebar */}
+        <div>
+          <Card className="sticky top-20 border-border/60 bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Clock className="h-4 w-4 text-primary" />
+                Recent Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {ledgerEntries.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No recent transactions.</p>
+              ) : (
+                <div className="space-y-0">
+                  {ledgerEntries.map((entry, i) => (
+                    <div key={entry.id}>
+                      <div className="flex items-center justify-between py-3">
+                        <div>
+                          <p className="text-xs font-semibold capitalize">
+                            {entry.type.replace('_', ' ').toLowerCase()}
+                          </p>
+                          <p className="text-[0.68rem] text-muted-foreground">
+                            {new Date(entry.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <p className={`font-mono text-sm font-bold ${Number(entry.amount) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {Number(entry.amount) >= 0 ? '+' : ''}${Math.abs(Number(entry.amount)).toFixed(2)}
+                        </p>
                       </div>
+                      {i < ledgerEntries.length - 1 && <Separator className="opacity-50" />}
                     </div>
-                    <div style={{ fontWeight: 700, color: Number(entry.amount) >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
-                      {Number(entry.amount) >= 0 ? '+' : ''}${Math.abs(Number(entry.amount)).toFixed(2)}
-                    </div>
+                  ))}
+                  <div className="pt-2">
+                    <Link href="/dashboard/ledger">
+                      <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground hover:text-foreground">
+                        View Full History <ArrowRight className="ml-1 h-3 w-3" />
+                      </Button>
+                    </Link>
                   </div>
-                ))}
-                <Link href="/dashboard/ledger" className="text-xs text-center mt-2" style={{ color: 'var(--color-text-muted)' }}>
-                  View Full History →
-                </Link>
-              </div>
-            )}
-          </section>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
+      </FadeIn>
     </div>
   );
 }

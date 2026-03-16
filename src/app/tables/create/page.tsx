@@ -2,25 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-
-function pokerChipGradient(color: string): string {
-  const light = 'rgba(255,255,255,0.42)';
-  const segs: string[] = [];
-  for (let i = 0; i < 12; i++) {
-    const s = i * 30;
-    segs.push(`${color} ${s}deg ${s + 20}deg`);
-    segs.push(`${light} ${s + 20}deg ${s + 30}deg`);
-  }
-  return `conic-gradient(${segs.join(', ')})`;
-}
-
-function chipTextColor(hex: string): string {
-  if (!hex.startsWith('#') || hex.length < 7) return '#fff';
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#000' : '#fff';
-}
+import { Plus, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert } from '@/components/ui/alert';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import PokerChip, { pokerChipGradient, chipTextColor } from '@/components/PokerChip';
 
 export default function CreateTablePage() {
   const router = useRouter();
@@ -31,23 +20,18 @@ export default function CreateTablePage() {
   });
   const [denominations, setDenominations] = useState([
     { label: 'White', color: '#FFFFFF', value: 1 },
-    { label: 'Red', color: '#FF0000', value: 5 },
+    { label: 'Red',   color: '#FF0000', value: 5 },
     { label: 'Green', color: '#00FF00', value: 25 },
     { label: 'Black', color: '#000000', value: 100 },
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const addDenomination = () => {
-    setDenominations([
-      ...denominations,
-      { label: 'New', color: '#888888', value: 1 },
-    ]);
-  };
+  const addDenomination = () =>
+    setDenominations([...denominations, { label: 'New', color: '#888888', value: 1 }]);
 
-  const removeDenomination = (index: number) => {
+  const removeDenomination = (index: number) =>
     setDenominations(denominations.filter((_, i) => i !== index));
-  };
 
   const updateDenomination = (index: number, field: string, value: string | number) => {
     const updated = [...denominations];
@@ -57,7 +41,6 @@ export default function CreateTablePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!Number.isFinite(form.maxPlayers) || form.maxPlayers < 2 || form.maxPlayers > 20) {
       setError('Max players must be between 2 and 20');
       return;
@@ -66,30 +49,20 @@ export default function CreateTablePage() {
       setError('Buy-in amount must be a positive number');
       return;
     }
-    const invalidDenom = denominations.find(
-      (d) => !Number.isFinite(d.value) || d.value <= 0
-    );
-    if (invalidDenom) {
+    if (denominations.find((d) => !Number.isFinite(d.value) || d.value <= 0)) {
       setError('Each chip denomination must have a positive value');
       return;
     }
-
     setLoading(true);
     setError('');
-
     try {
       const res = await fetch('/api/tables', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, chipDenominations: denominations }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to create table');
-      }
-
+      if (!res.ok) throw new Error(data.error || 'Failed to create table');
       router.push(`/tables/${data.id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -99,86 +72,82 @@ export default function CreateTablePage() {
   };
 
   return (
-    <div className="container" style={{ maxWidth: '800px', margin: '2rem auto' }}>
-      <h1>Create a New Table</h1>
-      <p className="subtitle">Set up the rules, buy-in, and chips for your game.</p>
+    <div className="container max-w-2xl py-10">
+      <header className="mb-8">
+        <h1 className="font-display text-4xl font-extrabold tracking-tight text-foreground">
+          Create a New Table
+        </h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Set up the rules, buy-in, and chips for your game.
+        </p>
+      </header>
 
-      {error && <div className="alert alert-error">{error}</div>}
+      {error && <Alert variant="destructive" className="mb-6">{error}</Alert>}
 
-      <form onSubmit={handleSubmit} className="form-card">
-        <div className="form-section">
-          <h2>1. Basic Settings</h2>
-          <div className="form-group row">
-            <div className="col">
-              <label className="form-label">Table Name</label>
-              <input
-                className="form-input"
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Basic settings */}
+        <Card className="border-border/60 bg-card">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">1. Basic Settings</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Table Name</Label>
+              <Input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
               />
             </div>
-            <div className="col">
-              <label className="form-label">Max Players</label>
-              <input
-                type="number"
-                className="form-input"
-                value={form.maxPlayers}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setForm({ ...form, maxPlayers: Number.isFinite(v) ? v : 9 });
-                }}
-                min={2}
-                max={20}
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Max Players</Label>
+                <Input
+                  type="number"
+                  value={form.maxPlayers}
+                  onChange={(e) => setForm({ ...form, maxPlayers: Number(e.target.value) || 9 })}
+                  min={2} max={20}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Standard Buy-in ($)</Label>
+                <Input
+                  type="number"
+                  value={form.buyInAmount}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setForm({ ...form, buyInAmount: v > 0 ? v : 100 });
+                  }}
+                  min={1} required
+                />
+              </div>
             </div>
-          </div>
-          <div className="form-group row">
-            <div className="col">
-              <label className="form-label">Standard Buy-in ($)</label>
-              <input
-                type="number"
-                className="form-input"
-                value={form.buyInAmount}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setForm({ ...form, buyInAmount: Number.isFinite(v) && v > 0 ? v : 100 });
-                }}
-                min={1}
-                required
-              />
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="form-section" style={{ marginTop: '2rem' }}>
-          <h2>2. Chip Denominations</h2>
-          <p className="help-text" style={{ marginBottom: '1.25rem' }}>Tap a chip to change its colour.</p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        {/* Chip denominations */}
+        <Card className="border-border/60 bg-card">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">2. Chip Denominations</CardTitle>
+            <p className="text-xs text-muted-foreground">Click the chip to change its colour.</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
             {denominations.map((denom, index) => {
               const textCol = chipTextColor(denom.color);
               const val = Number(denom.value);
               return (
                 <div
                   key={index}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 'var(--space-3)',
-                    padding: 'var(--space-3)',
-                    background: 'var(--surface-2)',
-                    border: '1px solid var(--border)',
-                  }}
+                  className="flex items-center gap-3 rounded-lg border border-border/60 bg-secondary/30 p-3"
                 >
-                  {/* Clickable live chip preview — opens hidden color input */}
-                  <label style={{ cursor: 'pointer', flexShrink: 0, position: 'relative' }}>
+                  {/* Clickable chip → opens color picker */}
+                  <label className="cursor-pointer flex-shrink-0 relative">
                     <input
                       type="color"
                       value={denom.color}
                       onChange={(e) => updateDenomination(index, 'color', e.target.value)}
-                      style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
+                      className="absolute opacity-0 w-0 h-0 pointer-events-none"
                     />
                     <div className="poker-chip" style={{ background: pokerChipGradient(denom.color) }}>
                       <div className="poker-chip-inner" style={{ background: denom.color }}>
@@ -189,74 +158,68 @@ export default function CreateTablePage() {
                     </div>
                   </label>
 
-                  {/* Label + value inputs */}
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                    <input
+                  <div className="flex-1 space-y-2">
+                    <Input
                       type="text"
-                      className="form-input"
                       placeholder="Name (e.g. Red)"
                       value={denom.label}
                       onChange={(e) => updateDenomination(index, 'label', e.target.value)}
-                      style={{ fontWeight: 600 }}
+                      className="font-semibold"
                       required
                     />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-2)', fontSize: 'var(--text-sm)' }}>$</span>
-                      <input
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-mono text-muted-foreground">$</span>
+                      <Input
                         type="number"
-                        className="form-input"
                         placeholder="Value"
                         value={denom.value}
                         onChange={(e) => {
                           const v = Number(e.target.value);
-                          updateDenomination(index, 'value', Number.isFinite(v) && v > 0 ? v : 1);
+                          updateDenomination(index, 'value', v > 0 ? v : 1);
                         }}
-                        min={0.01}
-                        step={0.01}
-                        style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}
+                        min={0.01} step={0.01}
+                        className="font-mono font-bold"
                         required
                       />
                     </div>
                   </div>
 
-                  {/* Remove */}
                   {denominations.length > 1 && (
-                    <button
+                    <Button
                       type="button"
-                      className="btn btn-outline"
+                      variant="destructive"
+                      size="icon"
+                      className="h-8 w-8 flex-shrink-0"
                       onClick={() => removeDenomination(index)}
-                      style={{ flexShrink: 0, borderColor: 'var(--red)', color: 'var(--red)', padding: '6px 14px', fontSize: 'var(--text-sm)' }}
                     >
-                      REMOVE
-                    </button>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   )}
                 </div>
               );
             })}
-          </div>
 
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={addDenomination}
-            style={{ marginTop: 'var(--space-3)', width: '100%' }}
-          >
-            + ADD CHIP COLOR
-          </button>
-        </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-1.5"
+              onClick={addDenomination}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Chip Color
+            </Button>
+          </CardContent>
+        </Card>
 
-        <div className="form-actions" style={{ marginTop: '3rem', textAlign: 'right' }}>
-          <button
-            type="button"
-            className="btn btn-outline"
-            onClick={() => router.back()}
-            style={{ marginRight: '1rem' }}
-          >
+        <Separator className="opacity-40" />
+
+        <div className="flex justify-end gap-3">
+          <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancel
-          </button>
-          <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-            {loading ? 'Creating...' : 'Create Table'}
-          </button>
+          </Button>
+          <Button type="submit" size="lg" disabled={loading}>
+            {loading ? 'Creating…' : 'Create Table'}
+          </Button>
         </div>
       </form>
     </div>

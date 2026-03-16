@@ -4,14 +4,16 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
+import { Spade } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert } from '@/components/ui/alert';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-  });
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -19,29 +21,23 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
         setError(data.error || 'Registration failed');
         setLoading(false);
         return;
       }
-
-      // Auto sign-in after registration
       const signInResult = await signIn('credentials', {
         email: form.email,
         password: form.password,
         redirect: false,
       });
-
       if (signInResult?.error) {
         setError('Account created. Please sign in manually.');
         router.push('/auth/login');
@@ -57,83 +53,87 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <h1 className="auth-title">Create Account</h1>
-        <p className="auth-subtitle">Join PokerPay and start playing</p>
-
-        {error && (
-          <div className="alert alert-error">
-            <span>⚠</span> {error}
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-12">
+      <div className="w-full max-w-[420px] animate-fade-in">
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary shadow-[0_0_24px_rgba(249,115,22,0.4)]">
+            <Spade className="h-6 w-6 text-white" />
           </div>
-        )}
+          <p className="font-display text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+            PokerPay
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="name" className="form-label">
-              Full Name
-            </label>
-            <input
-              id="name"
-              type="text"
-              className="form-input"
-              placeholder="John Doe"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </div>
+        <Card className="border-border/60 bg-card shadow-2xl">
+          <CardHeader className="pb-4 text-center">
+            <CardTitle className="text-2xl font-extrabold tracking-tight">Create Account</CardTitle>
+            <CardDescription>Join PokerPay and start playing</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <span className="text-sm">⚠ {error}</span>
+              </Alert>
+            )}
 
-          <div className="form-group">
-            <label htmlFor="email" className="form-label">
-              Email Address
-            </label>
-            <input
-              id="email"
-              type="email"
-              className="form-input"
-              placeholder="you@example.com"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              required
-            />
-          </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  required
+                />
+              </div>
 
-          <div className="form-group">
-            <label htmlFor="password" className="form-label">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              className="form-input"
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
                   placeholder="At least 8 characters"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   minLength={8}
-              required
-            />
-          </div>
+                  required
+                />
+              </div>
 
-          <button
-            type="submit"
-            className="btn btn-primary btn-block btn-lg"
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <span className="spinner"></span> Creating Account...
-              </>
-            ) : (
-              'Create Account'
-            )}
-          </button>
-        </form>
+              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="spinner" />
+                    Creating Account…
+                  </span>
+                ) : (
+                  'Create Account'
+                )}
+              </Button>
+            </form>
 
-        <div className="auth-footer">
-          Already have an account?{' '}
-          <Link href="/auth/login">Sign in</Link>
-        </div>
+            <p className="text-center text-xs text-muted-foreground">
+              Already have an account?{' '}
+              <Link href="/auth/login" className="font-semibold text-primary">
+                Sign in
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

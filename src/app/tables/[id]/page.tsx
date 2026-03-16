@@ -3,28 +3,16 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import QRCode from 'qrcode';
 import Link from 'next/link';
+import { headers } from 'next/headers';
+import { ArrowLeft, Users, DollarSign, Clock } from 'lucide-react';
 import TableActions from './TableActions';
 import AutoRefresh from '@/components/AutoRefresh';
-import { headers } from 'next/headers';
-
-function pokerChipGradient(color: string): string {
-  const light = 'rgba(255,255,255,0.42)';
-  const segs: string[] = [];
-  for (let i = 0; i < 12; i++) {
-    const s = i * 30;
-    segs.push(`${color} ${s}deg ${s + 20}deg`);
-    segs.push(`${light} ${s + 20}deg ${s + 30}deg`);
-  }
-  return `conic-gradient(${segs.join(', ')})`;
-}
-
-function chipTextColor(hex: string): string {
-  if (!hex.startsWith('#') || hex.length < 7) return '#fff';
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#000' : '#fff';
-}
+import PokerChip from '@/components/PokerChip';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
 
 export default function TablePageWrapper({ params }: { params: Promise<{ id: string }> }) {
   return <TablePage params={params} />;
@@ -44,30 +32,23 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
       organizer: { select: { id: true, name: true } },
       chipDenominations: { orderBy: { value: 'asc' } },
       players: {
-        include: {
-          user: { select: { id: true, name: true } },
-        },
+        include: { user: { select: { id: true, name: true } } },
         orderBy: { joinedAt: 'asc' },
       },
     },
   });
 
-  if (!table) {
-    notFound();
-  }
+  if (!table) notFound();
 
-  // Only organizers and players (active, cashed-out, or pending) may view the table
   const isMember =
     table.organizerId === session.user.id ||
     table.players.some((p) => p.userId === session.user.id);
-  if (!isMember) {
-    notFound();
-  }
+  if (!isMember) notFound();
 
-  const isOrganizer = table.organizerId === session.user.id;
-  const currentPlayer = table.players.find((p) => p.userId === session.user.id);
-  const isPlayer = !!currentPlayer && currentPlayer.status !== 'PENDING';
-  const isPending = currentPlayer?.status === 'PENDING';
+  const isOrganizer    = table.organizerId === session.user.id;
+  const currentPlayer  = table.players.find((p) => p.userId === session.user.id);
+  const isPlayer       = !!currentPlayer && currentPlayer.status !== 'PENDING';
+  const isPending      = currentPlayer?.status === 'PENDING';
 
   type PayoutRow = { name: string; status: string; cashout: number; net: number; stackPhoto?: string | null };
   type PayoutSummary = {
@@ -77,196 +58,209 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
     totalBuyIns: number;
     totalCashouts: number;
   };
-  const payoutSummary = table.status === 'CLOSED' && table.payoutSummary
-    ? (table.payoutSummary as PayoutSummary)
-    : null;
 
-  const activePlayers = table.players.filter((p) => p.status === 'ACTIVE' || p.status === 'CASHED_OUT');
+  const payoutSummary =
+    table.status === 'CLOSED' && table.payoutSummary
+      ? (table.payoutSummary as PayoutSummary)
+      : null;
+
+  const activePlayers  = table.players.filter((p) => p.status === 'ACTIVE' || p.status === 'CASHED_OUT');
   const pendingPlayers = table.players.filter((p) => p.status === 'PENDING');
 
   const headersList = await headers();
-  const host = headersList.get('x-forwarded-host') || headersList.get('host') || 'localhost:3000';
+  const host  = headersList.get('x-forwarded-host') || headersList.get('host') || 'localhost:3000';
   const proto = headersList.get('x-forwarded-proto') || (host.startsWith('localhost') ? 'http' : 'https');
-  const baseUrl = `${proto}://${host}`;
-  const qrCodeDataUrl = await QRCode.toDataURL(`${baseUrl}/tables/${table.id}`);
+  const qrCodeDataUrl = await QRCode.toDataURL(`${proto}://${host}/tables/${table.id}`);
 
   return (
-    <div className="container">
-      {/* Auto-refresh every 5 seconds for live updates */}
+    <div className="container py-8">
       <AutoRefresh intervalMs={5000} />
 
-      <div className="table-header card">
-        <div className="table-header-content">
-          <div>
-            <h1>{table.name}</h1>
-            <p className="subtitle">Organized by {table.organizer.name}</p>
-            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <span className={`badge ${table.status === 'OPEN' ? 'badge-success' : 'badge-neutral'}`}>
-                {table.status}
-              </span>
-              <span className="badge badge-primary">
-                {activePlayers.length} / {table.maxPlayers} Players
-              </span>
-              <span className="badge badge-secondary">
-                Buy-in: ${Number(table.buyInAmount)}
-              </span>
-              {pendingPlayers.length > 0 && isOrganizer && (
-                <span className="badge" style={{ background: 'var(--color-warning, #f59e0b)', color: '#000' }}>
-                  {pendingPlayers.length} Pending
-                </span>
-              )}
-            </div>
-          </div>
+      {/* Back link */}
+      <Link href="/dashboard" className="mb-6 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground no-underline transition-colors">
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Dashboard
+      </Link>
 
-          {isOrganizer && table.status === 'OPEN' && (
-            <div className="qr-container">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrCodeDataUrl} alt="Join Table QR" style={{ width: '120px', height: '120px', borderRadius: '8px' }} />
-              <p style={{ fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem', color: 'var(--text-muted)' }}>Scan to Join</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="table-grid-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '2rem', marginTop: '2rem' }}>
-
-        {/* Main Content Area */}
-        <div className="main-content">
-
-          {/* Pending approval notice for the current player */}
-          {isPending && (
-            <div className="alert" style={{ background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-4)', marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-              <span style={{ fontSize: '1.5rem' }}>⏳</span>
-              <div>
-                <div style={{ fontWeight: 700, color: '#f59e0b' }}>Waiting for organizer approval</div>
-                <div className="text-xs text-muted">The organizer will confirm your cash payment and approve your seat.</div>
-              </div>
-            </div>
-          )}
-
-          {/* Players at Table */}
-          <section className="card">
-            <h2>Players at Table</h2>
-            {activePlayers.length === 0 ? (
-              <p className="empty-state">No players have joined yet.</p>
-            ) : (
-              <ul className="player-list">
-                {activePlayers.map((player) => (
-                  <li key={player.id} className="player-list-item">
-                    <div className="avatar">{player.user.name[0]}</div>
-                    <div className="player-info">
-                      <strong>{player.user.name}</strong>
-                      <span className={`player-status text-sm ${player.status === 'CASHED_OUT' ? 'text-muted' : 'text-success'}`}>
-                        {player.status === 'CASHED_OUT' ? 'Cashed Out' : 'Active'}
-                      </span>
-                    </div>
-                    {player.status === 'CASHED_OUT' && player.cashoutAmount !== null && (
-                      <span className="text-sm font-bold" style={{ color: 'var(--color-success)', marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>
-                        ${Number(player.cashoutAmount).toFixed(2)}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* Payout Summary — shown to organizer on closed tables */}
-          {table.status === 'CLOSED' && isOrganizer && payoutSummary && (
-            <section className="card" style={{ marginTop: '2rem', border: '1px solid var(--color-border-light)' }}>
-              <h2 style={{ marginBottom: '0.25rem' }}>Payout Summary</h2>
-              <p className="text-xs text-muted" style={{ marginBottom: '1.25rem' }}>
-                Closed {new Date(payoutSummary.closedAt).toLocaleString()}
+      {/* Header card */}
+      <Card className="mb-6 border-border/60 bg-card">
+        <CardContent className="p-6">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div>
+              <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground">
+                {table.name}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Organized by {table.organizer.name}
               </p>
-
-              {/* Header row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0.5rem', padding: '0 0.5rem', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
-                <span>Player</span>
-                <span style={{ textAlign: 'right' }}>Buy-in</span>
-                <span style={{ textAlign: 'right' }}>Cashout</span>
-                <span style={{ textAlign: 'right' }}>Net</span>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge variant={table.status === 'OPEN' ? 'success' : 'secondary'}>
+                  {table.status}
+                </Badge>
+                <Badge variant="outline">
+                  <Users className="mr-1 h-3 w-3" />
+                  {activePlayers.length} / {table.maxPlayers}
+                </Badge>
+                <Badge variant="outline">
+                  <DollarSign className="mr-1 h-3 w-3" />
+                  ${Number(table.buyInAmount)} buy-in
+                </Badge>
+                {pendingPlayers.length > 0 && isOrganizer && (
+                  <Badge variant="warning">
+                    <Clock className="mr-1 h-3 w-3" />
+                    {pendingPlayers.length} Pending
+                  </Badge>
+                )}
               </div>
+            </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {payoutSummary.rows.map((row, i) => (
-                  <div key={i} style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                    {row.stackPhoto && (
-                      <div style={{ position: 'relative', lineHeight: 0 }}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={row.stackPhoto} alt={`${row.name}'s stack`} style={{ width: '100%', display: 'block' }} />
-                        <div style={{ position: 'absolute', top: 5, left: 7, fontFamily: 'var(--font-mono)', fontSize: '0.55rem', color: 'var(--green)', background: 'rgba(0,0,0,0.7)', padding: '2px 5px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                          📷 Stack photo
+            {/* QR Code */}
+            {isOrganizer && table.status === 'OPEN' && (
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-secondary/30 p-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrCodeDataUrl} alt="Join Table QR" className="w-28 h-28 rounded-lg" />
+                <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Scan to Join
+                </p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Pending notice for current player */}
+      {isPending && (
+        <Card className="mb-6 border-amber-500/20 bg-amber-500/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <span className="text-2xl">⏳</span>
+            <div>
+              <p className="text-sm font-bold text-amber-400">Waiting for organizer approval</p>
+              <p className="text-xs text-muted-foreground">The organizer will confirm your cash payment and approve your seat.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Main grid */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+
+        <div className="space-y-6">
+          {/* Players */}
+          <Card className="border-border/60 bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Players at Table</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {activePlayers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No players have joined yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {activePlayers.map((player, i) => (
+                    <div key={player.id}>
+                      <div className="flex items-center gap-3 py-1.5">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs">{player.user.name[0]}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold">{player.user.name}</p>
+                          <p className={`text-xs ${player.status === 'CASHED_OUT' ? 'text-muted-foreground' : 'text-emerald-400'}`}>
+                            {player.status === 'CASHED_OUT' ? 'Cashed Out' : 'Active'}
+                          </p>
                         </div>
+                        {player.status === 'CASHED_OUT' && player.cashoutAmount !== null && (
+                          <span className="font-mono text-sm font-bold text-emerald-400">
+                            ${Number(player.cashoutAmount).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      {i < activePlayers.length - 1 && <Separator className="opacity-30" />}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Payout summary (closed table, organizer) */}
+          {table.status === 'CLOSED' && isOrganizer && payoutSummary && (
+            <Card className="border-border/60 bg-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-primary">Payout Summary</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Closed {new Date(payoutSummary.closedAt).toLocaleString()}
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 px-2 text-[0.65rem] uppercase tracking-wider text-muted-foreground font-semibold">
+                  <span>Player</span>
+                  <span className="text-right">Buy-in</span>
+                  <span className="text-right">Cashout</span>
+                  <span className="text-right">Net</span>
+                </div>
+                {payoutSummary.rows.map((row, i) => (
+                  <div key={i} className="rounded-lg border border-border/60 bg-secondary/30 overflow-hidden">
+                    {row.stackPhoto && (
+                      <div className="relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={row.stackPhoto} alt={`${row.name}'s stack`} className="w-full block" />
+                        <span className="absolute top-1.5 left-2 bg-black/70 px-1.5 py-0.5 font-mono text-[0.55rem] uppercase tracking-wider text-emerald-400 rounded">
+                          📷 Stack photo
+                        </span>
                       </div>
                     )}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0.5rem', padding: '0.75rem 0.5rem', alignItems: 'center' }}>
+                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center px-3 py-3">
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{row.name}</div>
-                        {row.status !== 'CASHED_OUT' && (
-                          <div className="text-xs" style={{ color: '#f59e0b' }}>Did not cash out</div>
-                        )}
-                        {row.status === 'CASHED_OUT' && !row.stackPhoto && (
-                          <div className="text-xs" style={{ color: 'var(--red)' }}>No photo provided</div>
-                        )}
+                        <p className="text-sm font-semibold">{row.name}</p>
+                        {row.status !== 'CASHED_OUT' && <p className="text-xs text-amber-400">Did not cash out</p>}
                       </div>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', textAlign: 'right' }}>
-                        ${payoutSummary.buyInAmount.toFixed(2)}
-                      </span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', textAlign: 'right', color: row.cashout > 0 ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                      <span className="font-mono text-xs text-right">${payoutSummary.buyInAmount.toFixed(2)}</span>
+                      <span className={`font-mono text-xs text-right ${row.cashout > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
                         ${row.cashout.toFixed(2)}
                       </span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 700, textAlign: 'right', color: row.net > 0 ? 'var(--color-success)' : row.net < 0 ? 'var(--color-error, #ef4444)' : 'var(--color-text-muted)' }}>
+                      <span className={`font-mono text-xs font-bold text-right ${row.net > 0 ? 'text-emerald-400' : row.net < 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
                         {row.net >= 0 ? '+' : ''}${row.net.toFixed(2)}
                       </span>
                     </div>
                   </div>
                 ))}
-              </div>
-
-              {/* Totals */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0.5rem', padding: '0.75rem 0.5rem', borderTop: '1px solid var(--color-border-light)', marginTop: '0.25rem' }}>
-                <span style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>Total</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 700, textAlign: 'right' }}>${payoutSummary.totalBuyIns.toFixed(2)}</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 700, textAlign: 'right' }}>${payoutSummary.totalCashouts.toFixed(2)}</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 700, textAlign: 'right' }}>
-                  {(payoutSummary.totalCashouts - payoutSummary.totalBuyIns) >= 0 ? '+' : ''}${(payoutSummary.totalCashouts - payoutSummary.totalBuyIns).toFixed(2)}
-                </span>
-              </div>
-            </section>
+                <Separator className="opacity-40" />
+                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center px-2 py-1">
+                  <span className="text-sm font-bold">Total</span>
+                  <span className="font-mono text-sm font-bold text-right">${payoutSummary.totalBuyIns.toFixed(2)}</span>
+                  <span className="font-mono text-sm font-bold text-right">${payoutSummary.totalCashouts.toFixed(2)}</span>
+                  <span className={`font-mono text-sm font-bold text-right ${(payoutSummary.totalCashouts - payoutSummary.totalBuyIns) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {(payoutSummary.totalCashouts - payoutSummary.totalBuyIns) >= 0 ? '+' : ''}${(payoutSummary.totalCashouts - payoutSummary.totalBuyIns).toFixed(2)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
+          {/* Chip denominations (organizer) */}
           {isOrganizer && (
-            <section className="card" style={{ marginTop: '2rem' }}>
-              <h2>Chip Denominations</h2>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', marginTop: '1.25rem' }}>
-                {table.chipDenominations.map((chip) => {
-                  const val = Number(chip.value);
-                  const textCol = chipTextColor(chip.color);
-                  return (
-                    <div key={chip.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'var(--surface-2)', border: '1px solid var(--border)', flex: '1 1 160px', minWidth: '140px' }}>
-                      {/* Poker chip */}
-                      <div className="poker-chip" style={{ background: pokerChipGradient(chip.color), flexShrink: 0 }}>
-                        <div className="poker-chip-inner" style={{ background: chip.color }}>
-                          <span className="poker-chip-value" style={{ color: textCol }}>
-                            ${val % 1 === 0 ? val : val.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                      {/* Info */}
+            <Card className="border-border/60 bg-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Chip Denominations</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-3">
+                  {table.chipDenominations.map((chip) => (
+                    <div key={chip.id} className="flex items-center gap-3 rounded-lg border border-border/60 bg-secondary/30 px-4 py-3 flex-1 min-w-[140px]">
+                      <PokerChip color={chip.color} label={chip.label} value={Number(chip.value)} />
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--text)' }}>{chip.label}</div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--text-2)', marginTop: '2px' }}>${val.toFixed(2)}</div>
+                        <p className="text-sm font-semibold">{chip.label}</p>
+                        <p className="font-mono text-xs text-muted-foreground">${Number(chip.value).toFixed(2)}</p>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
 
-        {/* Sidebar Actions */}
-        <div className="sidebar">
+        {/* Sidebar actions */}
+        <div>
           <TableActions
             tableId={table.id}
             status={table.status}
@@ -279,7 +273,6 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
             activePlayers={activePlayers.map(p => ({
               name: p.user.name,
               status: p.status,
-              // Only expose financial details and photos to the organizer
               cashoutAmount: isOrganizer ? (p.cashoutAmount !== null ? Number(p.cashoutAmount) : null) : null,
               stackPhoto: isOrganizer ? (p.stackPhoto ?? null) : null,
             }))}

@@ -2,6 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Camera, CheckCircle, RotateCcw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Alert } from '@/components/ui/alert';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { pokerChipGradient, chipTextColor } from '@/components/PokerChip';
 
 interface ChipDenomination {
   id: string;
@@ -10,28 +17,6 @@ interface ChipDenomination {
   value: number;
 }
 
-/* Generate the conic-gradient that creates the serrated outer ring of a poker chip */
-function pokerChipGradient(color: string): string {
-  const light = 'rgba(255,255,255,0.42)';
-  const segs: string[] = [];
-  for (let i = 0; i < 12; i++) {
-    const s = i * 30;
-    segs.push(`${color} ${s}deg ${s + 20}deg`);
-    segs.push(`${light} ${s + 20}deg ${s + 30}deg`);
-  }
-  return `conic-gradient(${segs.join(', ')})`;
-}
-
-/* Black text for light chips, white for dark */
-function chipTextColor(hex: string): string {
-  if (!hex.startsWith('#') || hex.length < 7) return '#fff';
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#000' : '#fff';
-}
-
-/* Compress an image File to a base64 JPEG at ≤800px wide, ~65% quality */
 async function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -41,7 +26,7 @@ async function compressImage(file: File): Promise<string> {
       const MAX = 900;
       const scale = img.width > MAX ? MAX / img.width : 1;
       const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.width * scale);
+      canvas.width  = Math.round(img.width  * scale);
       canvas.height = Math.round(img.height * scale);
       const ctx = canvas.getContext('2d');
       if (!ctx) return reject(new Error('Canvas not supported'));
@@ -85,11 +70,7 @@ export default function ChipCounter({
     setError('');
   };
 
-  const total = chipDenominations.reduce(
-    (sum, d) => sum + d.value * (counts[d.id] ?? 0),
-    0
-  );
-
+  const total = chipDenominations.reduce((sum, d) => sum + d.value * (counts[d.id] ?? 0), 0);
   const hasAnyChips = Object.values(counts).some((c) => c > 0);
 
   const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,14 +89,8 @@ export default function ChipCounter({
   };
 
   const handleConfirmCashout = async () => {
-    if (!hasAnyChips) {
-      setError('Add at least one chip before cashing out.');
-      return;
-    }
-    if (!photo) {
-      setError('Take a photo of your chip stack before cashing out.');
-      return;
-    }
+    if (!hasAnyChips) { setError('Add at least one chip before cashing out.'); return; }
+    if (!photo) { setError('Take a photo of your chip stack before cashing out.'); return; }
     setIsProcessing(true);
     setError('');
     try {
@@ -152,281 +127,175 @@ export default function ChipCounter({
   };
 
   return (
-    <div style={{
-      marginTop: 'var(--space-4)',
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderTop: '3px solid var(--lime)',
-      padding: 'var(--space-6)',
-    }}>
-      {/* Header */}
-      <div style={{ marginBottom: 'var(--space-5)' }}>
-        <div style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: 'var(--text-2xl)',
-          letterSpacing: '0.06em',
-          color: 'var(--text)',
-          lineHeight: 1,
-        }}>
-          COUNT YOUR STACK
-        </div>
-        <div style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: '0.6rem',
-          color: 'var(--text-3)',
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
-          marginTop: '4px',
-        }}>
-          Tap +/− or type a count per denomination
-        </div>
-      </div>
+    <Card className="border-primary/30 bg-card shadow-[0_0_24px_rgba(249,115,22,0.08)]">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base tracking-tight">Count Your Stack</CardTitle>
+        <p className="text-xs text-muted-foreground">Tap +/− or type a count per denomination</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error    && <Alert variant="destructive" className="text-xs py-2">{error}</Alert>}
+        {confirmed && <Alert variant="success"    className="text-xs py-2 flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5" /> Cashout confirmed!</Alert>}
 
-      {error && (
-        <div className="alert alert-error" style={{ fontSize: 'var(--text-xs)', marginBottom: 'var(--space-4)' }}>
-          {error}
-        </div>
-      )}
+        {/* Chip rows */}
+        <div className="space-y-2">
+          {chipDenominations.map((d) => {
+            const count    = counts[d.id] ?? 0;
+            const subtotal = d.value * count;
+            const textCol  = chipTextColor(d.color);
 
-      {confirmed && (
-        <div className="alert alert-success" style={{ fontSize: 'var(--text-sm)', marginBottom: 'var(--space-4)' }}>
-          Cashout confirmed!
-        </div>
-      )}
-
-      {/* Chip rows */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-        {chipDenominations.map((d) => {
-          const count = counts[d.id] ?? 0;
-          const subtotal = d.value * count;
-          const textCol = chipTextColor(d.color);
-
-          return (
-            <div
-              key={d.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--space-3)',
-                padding: 'var(--space-3)',
-                background: 'var(--surface-2)',
-                border: `1px solid ${count > 0 ? 'rgba(203,255,0,0.25)' : 'var(--border)'}`,
-                transition: 'border-color 100ms ease',
-              }}
-            >
-              {/* CSS Poker chip */}
+            return (
               <div
-                className="poker-chip"
-                style={{ background: pokerChipGradient(d.color) }}
+                key={d.id}
+                className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
+                  count > 0 ? 'border-primary/30 bg-primary/5' : 'border-border/60 bg-secondary/20'
+                }`}
               >
-                <div
-                  className="poker-chip-inner"
-                  style={{ background: d.color }}
-                >
-                  <span
-                    className="poker-chip-value"
-                    style={{ color: textCol }}
+                {/* Chip visual */}
+                <div className="poker-chip flex-shrink-0" style={{ background: pokerChipGradient(d.color) }}>
+                  <div className="poker-chip-inner" style={{ background: d.color }}>
+                    <span className="poker-chip-value" style={{ color: textCol }}>
+                      ${d.value % 1 === 0 ? d.value : d.value.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Label */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">{d.label}</p>
+                  <p className="font-mono text-[0.6rem] text-muted-foreground uppercase tracking-wider">
+                    ${d.value.toFixed(2)} ea
+                  </p>
+                </div>
+
+                {/* Subtotal */}
+                <p className={`min-w-[56px] text-right font-mono text-sm font-bold ${subtotal > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                  ${subtotal.toFixed(2)}
+                </p>
+
+                {/* Stepper */}
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 text-base"
+                    onClick={() => adjust(d.id, -1)}
+                    disabled={count === 0 || isProcessing}
                   >
-                    ${d.value % 1 === 0 ? d.value : d.value.toFixed(2)}
-                  </span>
+                    −
+                  </Button>
+                  <input
+                    type="number"
+                    min={0}
+                    value={count === 0 ? '' : count}
+                    placeholder="0"
+                    onChange={(e) => setCount(d.id, e.target.value)}
+                    disabled={isProcessing}
+                    className="h-8 w-11 rounded-md border border-input bg-secondary/40 text-center font-mono text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="icon"
+                    className="h-8 w-8 text-base"
+                    onClick={() => adjust(d.id, 1)}
+                    disabled={isProcessing}
+                  >
+                    +
+                  </Button>
                 </div>
               </div>
-
-              {/* Label */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontWeight: 600,
-                  fontSize: 'var(--text-sm)',
-                  color: 'var(--text)',
-                }}>
-                  {d.label}
-                </div>
-                <div style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.58rem',
-                  color: 'var(--text-3)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                }}>
-                  ${d.value.toFixed(2)} ea
-                </div>
-              </div>
-
-              {/* Subtotal */}
-              <div style={{
-                minWidth: '58px',
-                textAlign: 'right',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--text-sm)',
-                fontWeight: 700,
-                color: subtotal > 0 ? 'var(--green)' : 'var(--text-3)',
-              }}>
-                ${subtotal.toFixed(2)}
-              </div>
-
-              {/* Counter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                <button
-                  onClick={() => adjust(d.id, -1)}
-                  disabled={count === 0 || isProcessing}
-                  style={{
-                    width: '32px', height: '32px',
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text)',
-                    fontSize: '1.1rem',
-                    cursor: count === 0 ? 'not-allowed' : 'pointer',
-                    opacity: count === 0 ? 0.3 : 1,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: 'var(--font-mono)',
-                    transition: 'all 80ms ease',
-                  }}
-                >
-                  −
-                </button>
-
-                <input
-                  type="number"
-                  min={0}
-                  value={count === 0 ? '' : count}
-                  placeholder="0"
-                  onChange={(e) => setCount(d.id, e.target.value)}
-                  disabled={isProcessing}
-                  style={{
-                    width: '44px', height: '32px',
-                    textAlign: 'center',
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 700,
-                    fontSize: 'var(--text-sm)',
-                    background: 'var(--surface)',
-                    border: `1px solid ${count > 0 ? 'rgba(203,255,0,0.4)' : 'var(--border)'}`,
-                    color: 'var(--text)',
-                    padding: '0 4px',
-                    borderRadius: 0,
-                    outline: 'none',
-                  }}
-                />
-
-                <button
-                  onClick={() => adjust(d.id, 1)}
-                  disabled={isProcessing}
-                  style={{
-                    width: '32px', height: '32px',
-                    background: 'var(--lime)',
-                    border: '1px solid var(--lime)',
-                    color: '#000',
-                    fontSize: '1.1rem',
-                    cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 900,
-                    transition: 'all 80ms ease',
-                    boxShadow: '2px 2px 0 rgba(203,255,0,0.4)',
-                  }}
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Total bar */}
-      <div style={{
-        marginTop: 'var(--space-5)',
-        padding: 'var(--space-4) var(--space-5)',
-        background: 'var(--surface-3)',
-        borderLeft: '3px solid var(--lime)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}>
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: '0.62rem',
-          color: 'var(--text-3)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.14em',
-        }}>
-          Total Stack
-        </span>
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--text-4xl)',
-          fontWeight: 700,
-          color: total > 0 ? 'var(--lime)' : 'var(--text-3)',
-          lineHeight: 1,
-        }}>
-          ${total.toFixed(2)}
-        </span>
-      </div>
-
-      {/* Photo capture */}
-      <div style={{ marginTop: 'var(--space-5)', border: `2px solid ${photo ? 'var(--green)' : 'var(--border-2)'}`, transition: 'border-color 150ms' }}>
-        <div style={{ padding: 'var(--space-3) var(--space-4)', background: 'var(--surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)' }}>
-          <div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', letterSpacing: '0.06em', color: photo ? 'var(--green)' : 'var(--text)', lineHeight: 1 }}>
-              {photo ? '✓ STACK PHOTO TAKEN' : 'PHOTO REQUIRED'}
-            </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'var(--text-3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: '3px' }}>
-              {photo ? 'Tap to retake' : 'Take a photo of your full chip stack'}
-            </div>
-          </div>
-          <label style={{ cursor: 'pointer', flexShrink: 0 }}>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handlePhoto}
-              disabled={isProcessing}
-              style={{ display: 'none' }}
-            />
-            <div style={{
-              padding: '8px 16px',
-              background: photo ? 'var(--surface-2)' : 'var(--lime)',
-              color: photo ? 'var(--text-2)' : '#000',
-              fontFamily: 'var(--font-display)',
-              fontSize: 'var(--text-base)',
-              letterSpacing: '0.06em',
-              border: photo ? '1px solid var(--border)' : 'none',
-              cursor: 'pointer',
-              opacity: isProcessing ? 0.5 : 1,
-            }}>
-              {photoLoading ? '...' : photo ? 'RETAKE' : '📷 SNAP'}
-            </div>
-          </label>
+            );
+          })}
         </div>
-        {photo && (
-          <div style={{ position: 'relative', lineHeight: 0 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo} alt="Stack preview" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', display: 'block' }} />
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '6px 10px', background: 'rgba(0,0,0,0.6)', fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'var(--green)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              Stack verified — photo will be sent to organizer
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
-        <button
-          className="btn btn-secondary"
-          onClick={handleReset}
-          disabled={isProcessing || !hasAnyChips}
-          style={{ flex: 1 }}
-        >
-          Reset
-        </button>
-        <button
-          className="btn btn-success"
-          onClick={handleConfirmCashout}
-          disabled={isProcessing || !hasAnyChips}
-          style={{ flex: 2 }}
-        >
-          {isProcessing ? 'Processing...' : `Cash Out  $${total.toFixed(2)}`}
-        </button>
-      </div>
-    </div>
+        {/* Total bar */}
+        <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-5 py-4">
+          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Total Stack
+          </span>
+          <span className={`font-mono text-3xl font-bold ${total > 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+            ${total.toFixed(2)}
+          </span>
+        </div>
+
+        <Separator className="opacity-40" />
+
+        {/* Photo capture */}
+        <div className={`rounded-lg border-2 transition-colors ${photo ? 'border-emerald-500/40' : 'border-border'}`}>
+          <div className="flex items-center justify-between p-3">
+            <div>
+              <p className={`text-sm font-semibold ${photo ? 'text-emerald-400' : 'text-foreground'}`}>
+                {photo ? '✓ Stack Photo Taken' : 'Photo Required'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {photo ? 'Tap to retake' : 'Take a photo of your full chip stack'}
+              </p>
+            </div>
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhoto}
+                disabled={isProcessing}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant={photo ? 'secondary' : 'default'}
+                size="sm"
+                className="gap-1.5 pointer-events-none"
+                disabled={isProcessing}
+                asChild
+              >
+                <span>
+                  <Camera className="h-3.5 w-3.5" />
+                  {photoLoading ? '…' : photo ? 'Retake' : 'Snap'}
+                </span>
+              </Button>
+            </label>
+          </div>
+          {photo && (
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo}
+                alt="Stack preview"
+                className="w-full max-h-44 object-cover rounded-b-lg"
+              />
+              <p className="absolute bottom-0 left-0 right-0 rounded-b-lg bg-black/60 px-3 py-1.5 font-mono text-[0.6rem] uppercase tracking-wider text-emerald-400">
+                Stack verified — photo will be sent to organizer
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          <Button
+            variant="secondary"
+            className="flex-1 gap-1.5"
+            onClick={handleReset}
+            disabled={isProcessing || !hasAnyChips}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset
+          </Button>
+          <Button
+            variant="success"
+            className="flex-[2]"
+            onClick={handleConfirmCashout}
+            disabled={isProcessing || !hasAnyChips}
+          >
+            {isProcessing ? (
+              <span className="flex items-center gap-2"><span className="spinner" /> Processing…</span>
+            ) : (
+              `Cash Out $${total.toFixed(2)}`
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
