@@ -80,14 +80,14 @@ export async function POST(
       );
     }
 
-    // Upload photo to Cloudflare R2; fall back to storing the data URL in the DB if R2 is unavailable.
+    // Upload photo to Cloudflare R2, get back a public URL
     const photoKey = `${id}/${session.user.id}/${Date.now()}.jpg`;
     let photoUrl: string;
     try {
       photoUrl = await uploadStackPhoto(stackPhoto, photoKey);
     } catch (uploadErr) {
-      console.warn('R2 upload failed, falling back to inline storage:', (uploadErr as Error).message);
-      photoUrl = stackPhoto; // store compressed base64 data URL directly in DB
+      console.error('R2 upload failed:', uploadErr);
+      return NextResponse.json({ error: 'Failed to upload stack photo. Please try again.' }, { status: 500 });
     }
 
     const result = await prisma.$transaction(async (tx) => {
