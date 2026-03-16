@@ -18,14 +18,23 @@ export async function POST(
 
     const { id } = await params;
 
-    let body: { amount?: number };
+    let body: { amount?: number; stackPhoto?: string };
     try {
       body = await request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    const { amount } = body;
+    const { amount, stackPhoto } = body;
+
+    // Validate photo is present and is a base64 JPEG/PNG data URL
+    if (!stackPhoto || !stackPhoto.startsWith('data:image/')) {
+      return NextResponse.json({ error: 'A photo of your chip stack is required to cash out' }, { status: 400 });
+    }
+    // Rough size guard — base64 of 2MB ≈ 2.7M chars
+    if (stackPhoto.length > 3_000_000) {
+      return NextResponse.json({ error: 'Photo is too large. Please use a clearer, smaller image.' }, { status: 400 });
+    }
 
     if (amount === undefined || typeof amount !== 'number' || amount <= 0) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
@@ -69,7 +78,7 @@ export async function POST(
           id: tablePlayer.id,
           status: 'ACTIVE',
         },
-        data: { status: 'CASHED_OUT', cashoutAmount: amount },
+        data: { status: 'CASHED_OUT', cashoutAmount: amount, stackPhoto },
       });
 
       if (updateResult.count === 0) {

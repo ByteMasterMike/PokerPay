@@ -68,7 +68,7 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
   const isPlayer = !!currentPlayer && currentPlayer.status !== 'PENDING';
   const isPending = currentPlayer?.status === 'PENDING';
 
-  type PayoutRow = { name: string; status: string; cashout: number; net: number };
+  type PayoutRow = { name: string; status: string; cashout: number; net: number; stackPhoto?: string | null };
   type PayoutSummary = {
     closedAt: string;
     buyInAmount: number;
@@ -188,22 +188,36 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {payoutSummary.rows.map((row, i) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0.5rem', padding: '0.75rem 0.5rem', background: 'rgba(0,0,0,0.25)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{row.name}</div>
-                      {row.status !== 'CASHED_OUT' && (
-                        <div className="text-xs" style={{ color: '#f59e0b' }}>Did not cash out</div>
-                      )}
+                  <div key={i} style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                    {row.stackPhoto && (
+                      <div style={{ position: 'relative', lineHeight: 0 }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={row.stackPhoto} alt={`${row.name}'s stack`} style={{ width: '100%', maxHeight: '120px', objectFit: 'cover', display: 'block' }} />
+                        <div style={{ position: 'absolute', top: 5, left: 7, fontFamily: 'var(--font-mono)', fontSize: '0.55rem', color: 'var(--green)', background: 'rgba(0,0,0,0.7)', padding: '2px 5px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                          📷 Stack photo
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0.5rem', padding: '0.75rem 0.5rem', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{row.name}</div>
+                        {row.status !== 'CASHED_OUT' && (
+                          <div className="text-xs" style={{ color: '#f59e0b' }}>Did not cash out</div>
+                        )}
+                        {row.status === 'CASHED_OUT' && !row.stackPhoto && (
+                          <div className="text-xs" style={{ color: 'var(--red)' }}>No photo provided</div>
+                        )}
+                      </div>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', textAlign: 'right' }}>
+                        ${payoutSummary.buyInAmount.toFixed(2)}
+                      </span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', textAlign: 'right', color: row.cashout > 0 ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                        ${row.cashout.toFixed(2)}
+                      </span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 700, textAlign: 'right', color: row.net > 0 ? 'var(--color-success)' : row.net < 0 ? 'var(--color-error, #ef4444)' : 'var(--color-text-muted)' }}>
+                        {row.net >= 0 ? '+' : ''}${row.net.toFixed(2)}
+                      </span>
                     </div>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', textAlign: 'right' }}>
-                      ${payoutSummary.buyInAmount.toFixed(2)}
-                    </span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', textAlign: 'right', color: row.cashout > 0 ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
-                      ${row.cashout.toFixed(2)}
-                    </span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 700, textAlign: 'right', color: row.net > 0 ? 'var(--color-success)' : row.net < 0 ? 'var(--color-error, #ef4444)' : 'var(--color-text-muted)' }}>
-                      {row.net >= 0 ? '+' : ''}${row.net.toFixed(2)}
-                    </span>
                   </div>
                 ))}
               </div>
@@ -265,6 +279,7 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
               name: p.user.name,
               status: p.status,
               cashoutAmount: p.cashoutAmount !== null ? Number(p.cashoutAmount) : null,
+              stackPhoto: p.stackPhoto ?? null,
             }))}
             buyInAmount={Number(table.buyInAmount)}
           />

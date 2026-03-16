@@ -31,6 +31,28 @@ function chipTextColor(hex: string): string {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#000' : '#fff';
 }
 
+/* Compress an image File to a base64 JPEG at ≤800px wide, ~65% quality */
+async function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 900;
+      const scale = img.width > MAX ? MAX / img.width : 1;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('Canvas not supported'));
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.65));
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = url;
+  });
+}
+
 export default function ChipCounter({
   tableId,
   chipDenominations,
@@ -47,6 +69,8 @@ export default function ChipCounter({
   const [isProcessing, setIsProcessing] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState('');
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoLoading, setPhotoLoading] = useState(false);
 
   const adjust = (id: string, delta: number) => {
     setCounts((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) + delta) }));
@@ -68,9 +92,28 @@ export default function ChipCounter({
 
   const hasAnyChips = Object.values(counts).some((c) => c > 0);
 
+  const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoLoading(true);
+    setError('');
+    try {
+      const compressed = await compressImage(file);
+      setPhoto(compressed);
+    } catch {
+      setError('Could not process photo. Please try again.');
+    } finally {
+      setPhotoLoading(false);
+    }
+  };
+
   const handleConfirmCashout = async () => {
     if (!hasAnyChips) {
       setError('Add at least one chip before cashing out.');
+      return;
+    }
+    if (!photo) {
+      setError('Take a photo of your chip stack before cashing out.');
       return;
     }
     setIsProcessing(true);
@@ -79,7 +122,7 @@ export default function ChipCounter({
       const res = await fetch(`/api/tables/${tableId}/cashout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: total }),
+        body: JSON.stringify({ amount: total, stackPhoto: photo }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -99,6 +142,7 @@ export default function ChipCounter({
     setCounts(Object.fromEntries(chipDenominations.map((d) => [d.id, 0])));
     setConfirmed(false);
     setError('');
+    setPhoto(null);
   };
 
   return (
@@ -310,6 +354,52 @@ export default function ChipCounter({
         }}>
           ${total.toFixed(2)}
         </span>
+      </div>
+
+      {/* Photo capture */}
+      <div style={{ marginTop: 'var(--space-5)', border: `2px solid ${photo ? 'var(--green)' : 'var(--border-2)'}`, transition: 'border-color 150ms' }}>
+        <div style={{ padding: 'var(--space-3) var(--space-4)', background: 'var(--surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)' }}>
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', letterSpacing: '0.06em', color: photo ? 'var(--green)' : 'var(--text)', lineHeight: 1 }}>
+              {photo ? '✓ STACK PHOTO TAKEN' : 'PHOTO REQUIRED'}
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'var(--text-3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: '3px' }}>
+              {photo ? 'Tap to retake' : 'Take a photo of your full chip stack'}
+            </div>
+          </div>
+          <label style={{ cursor: 'pointer', flexShrink: 0 }}>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhoto}
+              disabled={isProcessing}
+              style={{ display: 'none' }}
+            />
+            <div style={{
+              padding: '8px 16px',
+              background: photo ? 'var(--surface-2)' : 'var(--lime)',
+              color: photo ? 'var(--text-2)' : '#000',
+              fontFamily: 'var(--font-display)',
+              fontSize: 'var(--text-base)',
+              letterSpacing: '0.06em',
+              border: photo ? '1px solid var(--border)' : 'none',
+              cursor: 'pointer',
+              opacity: isProcessing ? 0.5 : 1,
+            }}>
+              {photoLoading ? '...' : photo ? 'RETAKE' : '📷 SNAP'}
+            </div>
+          </label>
+        </div>
+        {photo && (
+          <div style={{ position: 'relative', lineHeight: 0 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photo} alt="Stack preview" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', display: 'block' }} />
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '6px 10px', background: 'rgba(0,0,0,0.6)', fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'var(--green)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Stack verified — photo will be sent to organizer
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Actions */}

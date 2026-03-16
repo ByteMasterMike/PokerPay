@@ -14,7 +14,7 @@ export default async function DashboardPage({
   searchParams: Promise<{ filter?: string }>;
 }) {
   const { filter: rawFilter } = await searchParams;
-  const filter: FilterValue = rawFilter === 'open' || rawFilter === 'closed' ? rawFilter : 'all';
+  const filter: FilterValue = rawFilter === 'all' || rawFilter === 'closed' ? rawFilter : 'open';
 
   const session = await auth();
 
