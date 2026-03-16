@@ -102,11 +102,9 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      createDenominations.push({
-        color: String(chip.color ?? ''),
-        label: String(chip.label ?? ''),
-        value: val,
-      });
+      const color = String(chip.color ?? '').slice(0, 20);
+      const label = String(chip.label ?? '').slice(0, 50);
+      createDenominations.push({ color, label, value: val });
     }
 
     const table = await prisma.table.create({

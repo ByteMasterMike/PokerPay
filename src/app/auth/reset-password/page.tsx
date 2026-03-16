@@ -122,7 +122,7 @@ function ResetPasswordForm() {
                 placeholder="Re-enter your password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                minLength={6}
+                minLength={8}
                 required
               />
             </div>

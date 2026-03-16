@@ -31,8 +31,8 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               // Fonts: self + Google Fonts CDN
               "font-src 'self' https://fonts.gstatic.com",
-              // Images: self + data URIs (for QR codes)
-              "img-src 'self' data: blob:",
+              // Images: self + data URIs (for QR codes) + R2 stack photos
+              "img-src 'self' data: blob: https://pub-9e31adc34489458694a4a47d7b6a2b47.r2.dev",
               // Camera access for QR scanner
               "media-src 'self' blob:",
               // API calls: self + external APIs

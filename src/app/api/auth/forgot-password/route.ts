@@ -86,8 +86,8 @@ export async function POST(request: NextRequest) {
         console.log('[Password Reset] Email sent to', normalizedEmail);
       }
     } else {
-      // Fallback: log for dev testing
-      console.log('[Password Reset] Link for', normalizedEmail, ':', resetUrl);
+      // Dev fallback: only log that a token was generated, never the URL itself
+      console.log('[Password Reset] Token generated for', normalizedEmail, '(RESEND_API_KEY not set — configure it to send emails)');
     }
 
     return NextResponse.json(successResponse);

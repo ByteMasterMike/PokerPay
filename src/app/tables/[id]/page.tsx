@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation';
+import { redirect, notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import QRCode from 'qrcode';
@@ -53,14 +53,15 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
   });
 
   if (!table) {
-    return (
-      <div className="container">
-        <h1>Table Not Found</h1>
-        <Link href="/dashboard" className="btn btn-secondary mt-4">
-          Back to Dashboard
-        </Link>
-      </div>
-    );
+    notFound();
+  }
+
+  // Only organizers and players (active, cashed-out, or pending) may view the table
+  const isMember =
+    table.organizerId === session.user.id ||
+    table.players.some((p) => p.userId === session.user.id);
+  if (!isMember) {
+    notFound();
   }
 
   const isOrganizer = table.organizerId === session.user.id;
@@ -274,12 +275,13 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
             isPending={isPending}
             isFull={activePlayers.length >= table.maxPlayers}
             chipDenominations={table.chipDenominations.map(d => ({ ...d, value: Number(d.value) }))}
-            pendingPlayers={pendingPlayers.map(p => ({ id: p.id, userId: p.userId, name: p.user.name }))}
+            pendingPlayers={isOrganizer ? pendingPlayers.map(p => ({ id: p.id, userId: p.userId, name: p.user.name })) : []}
             activePlayers={activePlayers.map(p => ({
               name: p.user.name,
               status: p.status,
-              cashoutAmount: p.cashoutAmount !== null ? Number(p.cashoutAmount) : null,
-              stackPhoto: p.stackPhoto ?? null,
+              // Only expose financial details and photos to the organizer
+              cashoutAmount: isOrganizer ? (p.cashoutAmount !== null ? Number(p.cashoutAmount) : null) : null,
+              stackPhoto: isOrganizer ? (p.stackPhoto ?? null) : null,
             }))}
             buyInAmount={Number(table.buyInAmount)}
           />

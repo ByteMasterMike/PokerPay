@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    const { email, password, name } = body;
+    let { email, password, name } = body;
 
     if (!email || !password || !name) {
       return NextResponse.json(
@@ -20,9 +20,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Normalize email before any checks or storage
+    email = email.trim().toLowerCase();
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
+    if (!emailRegex.test(email)) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
     }
 

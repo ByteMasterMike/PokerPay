@@ -12,10 +12,21 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : undefined;
+  const rawLimit = searchParams.get('limit');
+  const limit = rawLimit ? parseInt(rawLimit, 10) : undefined;
+  const safeLimit = limit && Number.isInteger(limit) && limit > 0 ? limit : undefined;
+
+  // Scope export to tables the requesting user organised — prevents cross-user data access
+  const userTableIds = (
+    await prisma.table.findMany({
+      where: { organizerId: session.user.id },
+      select: { id: true },
+    })
+  ).map((t) => t.id);
 
   const records = await prisma.tablePlayer.findMany({
     where: {
+      tableId: { in: userTableIds },
       stackPhoto: { not: null },
       chipCounts: { not: undefined },
       status: 'CASHED_OUT',
@@ -28,7 +39,7 @@ export async function GET(request: NextRequest) {
       joinedAt: true,
     },
     orderBy: { joinedAt: 'desc' },
-    ...(limit ? { take: limit } : {}),
+    ...(safeLimit ? { take: safeLimit } : {}),
   });
 
   // Filter to only records that have both a URL-based photo and chip counts
