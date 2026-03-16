@@ -6,7 +6,6 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Require authentication — table data is not public
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -32,7 +31,7 @@ export async function GET(
     return NextResponse.json({ error: 'Table not found' }, { status: 404 });
   }
 
-  // Only organizer or joined players can see full table details
+  // Organizer, active/cashed-out players, and pending players can all view the table
   const isOrganizer = table.organizerId === session.user.id;
   const isPlayer = table.players.some((p) => p.userId === session.user.id);
   if (!isOrganizer && !isPlayer) {
@@ -53,14 +52,14 @@ export async function POST(
 
   const { id } = await params;
 
-  let body: { action?: string };
+  let body: { action?: string; userId?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { action } = body;
+  const { action, userId } = body;
 
   const table = await prisma.table.findUnique({
     where: { id },
@@ -71,6 +70,8 @@ export async function POST(
     return NextResponse.json({ error: 'Table not found' }, { status: 404 });
   }
 
+  // ── JOIN ─────────────────────────────────────────────────────────────────
+  // Creates a PENDING record — organizer must approve before balance is deducted
   if (action === 'join') {
     if (table.status !== 'OPEN') {
       return NextResponse.json(
@@ -79,114 +80,115 @@ export async function POST(
       );
     }
 
-    if (table._count.players >= table.maxPlayers) {
+    const activeCount = await prisma.tablePlayer.count({
+      where: { tableId: id, status: 'ACTIVE' },
+    });
+    if (activeCount >= table.maxPlayers) {
+      return NextResponse.json({ error: 'This table is full' }, { status: 400 });
+    }
+
+    const existing = await prisma.tablePlayer.findUnique({
+      where: { tableId_userId: { tableId: id, userId: session.user.id } },
+    });
+    if (existing) {
       return NextResponse.json(
-        { error: 'This table is full' },
+        { error: existing.status === 'PENDING' ? 'Already waiting for approval' : 'You have already joined this table' },
         { status: 400 }
       );
     }
 
-    const existingPlayer = await prisma.tablePlayer.findUnique({
-      where: {
-        tableId_userId: {
-          tableId: id,
-          userId: session.user.id,
-        },
-      },
+    await prisma.tablePlayer.create({
+      data: { tableId: id, userId: session.user.id, status: 'PENDING' },
     });
 
-    if (existingPlayer) {
-      return NextResponse.json(
-        { error: 'You have already joined this table' },
-        { status: 400 }
-      );
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { balance: true }
-    });
-
-    if (!user || user.balance < table.buyInAmount) {
-      return NextResponse.json(
-        { error: `Insufficient funds. Buy-in is $${table.buyInAmount}` },
-        { status: 400 }
-      );
-    }
-
-    try {
-      const joinResult = await prisma.$transaction(async (tx) => {
-        const playerCount = await tx.tablePlayer.count({
-          where: { tableId: id },
-        });
-        if (playerCount >= table.maxPlayers) {
-          return { success: false as const, error: 'This table is full' };
-        }
-
-        const existingInTx = await tx.tablePlayer.findUnique({
-          where: {
-            tableId_userId: { tableId: id, userId: session.user.id },
-          },
-        });
-        if (existingInTx) {
-          return { success: false as const, error: 'You have already joined this table' };
-        }
-
-        const balanceUpdate = await tx.user.updateMany({
-          where: {
-            id: session.user.id,
-            balance: { gte: table.buyInAmount },
-          },
-          data: { balance: { decrement: table.buyInAmount } },
-        });
-        if (balanceUpdate.count === 0) {
-          return { success: false as const, error: `Insufficient funds. Buy-in is $${table.buyInAmount}` };
-        }
-
-        await tx.ledgerEntry.create({
-          data: {
-            userId: session.user.id,
-            amount: -table.buyInAmount,
-            type: 'BUY_IN',
-            description: `Buy-in for table: ${table.name}`,
-          },
-        });
-
-        await tx.tablePlayer.create({
-          data: {
-            tableId: id,
-            userId: session.user.id,
-          },
-        });
-
-        return { success: true as const };
-      });
-
-      if (!joinResult.success) {
-        return NextResponse.json(
-          { error: joinResult.error },
-          { status: 400 }
-        );
-      }
-
-      return NextResponse.json({ message: 'Joined table successfully' });
-    } catch (error) {
-      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-        return NextResponse.json(
-          { error: 'You have already joined this table' },
-          { status: 400 }
-        );
-      }
-      throw error;
-    }
+    return NextResponse.json({ message: 'Join request sent — waiting for organizer approval' });
   }
 
+  // ── APPROVE ──────────────────────────────────────────────────────────────
+  // Organizer approves a pending player: deduct buy-in and set ACTIVE
+  if (action === 'approve') {
+    if (table.organizerId !== session.user.id) {
+      return NextResponse.json({ error: 'Only the organizer can approve players' }, { status: 403 });
+    }
+    if (!userId) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+
+    const pending = await prisma.tablePlayer.findUnique({
+      where: { tableId_userId: { tableId: id, userId } },
+    });
+    if (!pending || pending.status !== 'PENDING') {
+      return NextResponse.json({ error: 'No pending request found for this player' }, { status: 404 });
+    }
+
+    const activeCount = await prisma.tablePlayer.count({
+      where: { tableId: id, status: 'ACTIVE' },
+    });
+    if (activeCount >= table.maxPlayers) {
+      return NextResponse.json({ error: 'Table is full' }, { status: 400 });
+    }
+
+    const approveResult = await prisma.$transaction(async (tx) => {
+      const balanceUpdate = await tx.user.updateMany({
+        where: { id: userId, balance: { gte: table.buyInAmount } },
+        data: { balance: { decrement: table.buyInAmount } },
+      });
+      if (balanceUpdate.count === 0) {
+        return { success: false as const, error: `Player has insufficient funds for the $${table.buyInAmount} buy-in` };
+      }
+
+      await tx.ledgerEntry.create({
+        data: {
+          userId,
+          amount: -table.buyInAmount,
+          type: 'BUY_IN',
+          description: `Buy-in for table: ${table.name}`,
+        },
+      });
+
+      await tx.tablePlayer.update({
+        where: { tableId_userId: { tableId: id, userId } },
+        data: { status: 'ACTIVE' },
+      });
+
+      return { success: true as const };
+    });
+
+    if (!approveResult.success) {
+      return NextResponse.json({ error: approveResult.error }, { status: 400 });
+    }
+
+    return NextResponse.json({ message: 'Player approved and buy-in collected' });
+  }
+
+  // ── REJECT ───────────────────────────────────────────────────────────────
+  // Organizer rejects a pending player: delete their record
+  if (action === 'reject') {
+    if (table.organizerId !== session.user.id) {
+      return NextResponse.json({ error: 'Only the organizer can reject players' }, { status: 403 });
+    }
+    if (!userId) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+
+    const pending = await prisma.tablePlayer.findUnique({
+      where: { tableId_userId: { tableId: id, userId } },
+    });
+    if (!pending || pending.status !== 'PENDING') {
+      return NextResponse.json({ error: 'No pending request found for this player' }, { status: 404 });
+    }
+
+    await prisma.tablePlayer.delete({
+      where: { tableId_userId: { tableId: id, userId } },
+    });
+
+    return NextResponse.json({ message: 'Player request rejected' });
+  }
+
+  // ── CLOSE ────────────────────────────────────────────────────────────────
   if (action === 'close') {
     if (table.organizerId !== session.user.id) {
-      return NextResponse.json(
-        { error: 'Only the organizer can close this table' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Only the organizer can close this table' }, { status: 403 });
     }
 
     await prisma.table.update({

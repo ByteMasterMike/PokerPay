@@ -72,9 +72,10 @@ model ChipDenomination {
 }
 
 model TablePlayer {
-  id       String   @id @default(uuid())
-  status   String   @default("ACTIVE") // ACTIVE | CASHED_OUT
-  joinedAt DateTime @default(now())
+  id            String   @id @default(uuid())
+  status        String   @default("ACTIVE") // PENDING | ACTIVE | CASHED_OUT
+  cashoutAmount Decimal? @db.Decimal(12, 2)
+  joinedAt      DateTime @default(now())
 
   tableId String
   table   Table  @relation(fields: [tableId], references: [id], onDelete: Cascade)

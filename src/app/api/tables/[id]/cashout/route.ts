@@ -69,7 +69,7 @@ export async function POST(
           id: tablePlayer.id,
           status: 'ACTIVE',
         },
-        data: { status: 'CASHED_OUT' },
+        data: { status: 'CASHED_OUT', cashoutAmount: amount },
       });
 
       if (updateResult.count === 0) {

@@ -3,10 +3,10 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import QRCode from 'qrcode';
 import Link from 'next/link';
-import TableActions from './TableActions'; // We will build this client component next
+import TableActions from './TableActions';
+import AutoRefresh from '@/components/AutoRefresh';
 
 export default function TablePageWrapper({ params }: { params: Promise<{ id: string }> }) {
-  // A wrapper to handle the `params` promise
   return <TablePage params={params} />;
 }
 
@@ -44,32 +44,44 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
   }
 
   const isOrganizer = table.organizerId === session.user.id;
-  const isPlayer = table.players.some((p) => p.userId === session.user.id);
-  
-  // Quick absolute URL hack given NextJS server components no request
+  const currentPlayer = table.players.find((p) => p.userId === session.user.id);
+  const isPlayer = !!currentPlayer && currentPlayer.status !== 'PENDING';
+  const isPending = currentPlayer?.status === 'PENDING';
+
+  const activePlayers = table.players.filter((p) => p.status === 'ACTIVE' || p.status === 'CASHED_OUT');
+  const pendingPlayers = table.players.filter((p) => p.status === 'PENDING');
+
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
   const qrCodeDataUrl = await QRCode.toDataURL(`${baseUrl}/tables/${table.id}`);
 
   return (
     <div className="container">
+      {/* Auto-refresh every 5 seconds for live updates */}
+      <AutoRefresh intervalMs={5000} />
+
       <div className="table-header card">
         <div className="table-header-content">
           <div>
             <h1>{table.name}</h1>
             <p className="subtitle">Organized by {table.organizer.name}</p>
-            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span className={`badge ${table.status === 'OPEN' ? 'badge-success' : 'badge-neutral'}`}>
                 {table.status}
               </span>
               <span className="badge badge-primary">
-                {table.players.length} / {table.maxPlayers} Players
+                {activePlayers.length} / {table.maxPlayers} Players
               </span>
               <span className="badge badge-secondary">
                 Buy-in: ${Number(table.buyInAmount)}
               </span>
+              {pendingPlayers.length > 0 && isOrganizer && (
+                <span className="badge" style={{ background: 'var(--color-warning, #f59e0b)', color: '#000' }}>
+                  {pendingPlayers.length} Pending
+                </span>
+              )}
             </div>
           </div>
-          
+
           {isOrganizer && table.status === 'OPEN' && (
             <div className="qr-container">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -81,22 +93,42 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
       </div>
 
       <div className="table-grid-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '2rem', marginTop: '2rem' }}>
-        
+
         {/* Main Content Area */}
         <div className="main-content">
+
+          {/* Pending approval notice for the current player */}
+          {isPending && (
+            <div className="alert" style={{ background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-4)', marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <span style={{ fontSize: '1.5rem' }}>⏳</span>
+              <div>
+                <div style={{ fontWeight: 700, color: '#f59e0b' }}>Waiting for organizer approval</div>
+                <div className="text-xs text-muted">The organizer will confirm your cash payment and approve your seat.</div>
+              </div>
+            </div>
+          )}
+
+          {/* Players at Table */}
           <section className="card">
             <h2>Players at Table</h2>
-            {table.players.length === 0 ? (
+            {activePlayers.length === 0 ? (
               <p className="empty-state">No players have joined yet.</p>
             ) : (
               <ul className="player-list">
-                {table.players.map((player) => (
+                {activePlayers.map((player) => (
                   <li key={player.id} className="player-list-item">
                     <div className="avatar">{player.user.name[0]}</div>
                     <div className="player-info">
                       <strong>{player.user.name}</strong>
-                      <span className="player-status text-sm text-success">{player.status}</span>
+                      <span className={`player-status text-sm ${player.status === 'CASHED_OUT' ? 'text-muted' : 'text-success'}`}>
+                        {player.status === 'CASHED_OUT' ? 'Cashed Out' : 'Active'}
+                      </span>
                     </div>
+                    {player.status === 'CASHED_OUT' && player.cashoutAmount !== null && (
+                      <span className="text-sm font-bold" style={{ color: 'var(--color-success)', marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>
+                        ${Number(player.cashoutAmount).toFixed(2)}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -121,13 +153,21 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
 
         {/* Sidebar Actions */}
         <div className="sidebar">
-          <TableActions 
-            tableId={table.id} 
+          <TableActions
+            tableId={table.id}
             status={table.status}
             isOrganizer={isOrganizer}
             isPlayer={isPlayer}
-            isFull={table.players.length >= table.maxPlayers}
+            isPending={isPending}
+            isFull={activePlayers.length >= table.maxPlayers}
             chipDenominations={table.chipDenominations.map(d => ({ ...d, value: Number(d.value) }))}
+            pendingPlayers={pendingPlayers.map(p => ({ id: p.id, userId: p.userId, name: p.user.name }))}
+            activePlayers={activePlayers.map(p => ({
+              name: p.user.name,
+              status: p.status,
+              cashoutAmount: p.cashoutAmount !== null ? Number(p.cashoutAmount) : null,
+            }))}
+            buyInAmount={Number(table.buyInAmount)}
           />
         </div>
       </div>
