@@ -53,14 +53,14 @@ export default function TableActions({
   const [showCashout, setShowCashout] = useState(false);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
 
-  const handleTableAction = async (action: 'join' | 'close') => {
+  const handleTableAction = async (action: 'join' | 'close', extra?: Record<string, unknown>) => {
     setLoading(true);
     setError('');
     try {
       const res = await fetch(`/api/tables/${tableId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, ...extra }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Failed to ${action} table`);
@@ -288,7 +288,14 @@ export default function TableActions({
                 style={{ flex: 2 }}
                 disabled={loading}
                 onClick={async () => {
-                  await handleTableAction('close');
+                  const payoutSummary = {
+                    closedAt: new Date().toISOString(),
+                    buyInAmount,
+                    rows: payoutRows,
+                    totalBuyIns,
+                    totalCashouts,
+                  };
+                  await handleTableAction('close', { payoutSummary });
                   setShowPayoutModal(false);
                 }}
               >

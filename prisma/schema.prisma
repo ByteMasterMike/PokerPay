@@ -54,6 +54,8 @@ model Table {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  payoutSummary Json?
+
   organizerId String
   organizer   User   @relation("OrganizerTables", fields: [organizerId], references: [id])
 

@@ -4,14 +4,14 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
-    let body: { email?: string; password?: string; name?: string; role?: string };
+    let body: { email?: string; password?: string; name?: string };
     try {
       body = await request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    const { email, password, name, role } = body;
+    const { email, password, name } = body;
 
     if (!email || !password || !name) {
       return NextResponse.json(
@@ -60,17 +60,11 @@ export async function POST(request: NextRequest) {
         email,
         passwordHash,
         name,
-        role: role === 'ORGANIZER' ? 'ORGANIZER' : 'PLAYER',
       },
     });
 
     return NextResponse.json(
-      {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
+      { id: user.id, email: user.email, name: user.name },
       { status: 201 }
     );
   } catch (error) {

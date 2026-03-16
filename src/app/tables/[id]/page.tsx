@@ -48,6 +48,18 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
   const isPlayer = !!currentPlayer && currentPlayer.status !== 'PENDING';
   const isPending = currentPlayer?.status === 'PENDING';
 
+  type PayoutRow = { name: string; status: string; cashout: number; net: number };
+  type PayoutSummary = {
+    closedAt: string;
+    buyInAmount: number;
+    rows: PayoutRow[];
+    totalBuyIns: number;
+    totalCashouts: number;
+  };
+  const payoutSummary = table.status === 'CLOSED' && table.payoutSummary
+    ? (table.payoutSummary as PayoutSummary)
+    : null;
+
   const activePlayers = table.players.filter((p) => p.status === 'ACTIVE' || p.status === 'CASHED_OUT');
   const pendingPlayers = table.players.filter((p) => p.status === 'PENDING');
 
@@ -134,6 +146,56 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
               </ul>
             )}
           </section>
+
+          {/* Payout Summary — shown to organizer on closed tables */}
+          {table.status === 'CLOSED' && isOrganizer && payoutSummary && (
+            <section className="card" style={{ marginTop: '2rem', border: '1px solid var(--color-border-light)' }}>
+              <h2 style={{ marginBottom: '0.25rem' }}>Payout Summary</h2>
+              <p className="text-xs text-muted" style={{ marginBottom: '1.25rem' }}>
+                Closed {new Date(payoutSummary.closedAt).toLocaleString()}
+              </p>
+
+              {/* Header row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0.5rem', padding: '0 0.5rem', fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                <span>Player</span>
+                <span style={{ textAlign: 'right' }}>Buy-in</span>
+                <span style={{ textAlign: 'right' }}>Cashout</span>
+                <span style={{ textAlign: 'right' }}>Net</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {payoutSummary.rows.map((row, i) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0.5rem', padding: '0.75rem 0.5rem', background: 'rgba(0,0,0,0.25)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{row.name}</div>
+                      {row.status !== 'CASHED_OUT' && (
+                        <div className="text-xs" style={{ color: '#f59e0b' }}>Did not cash out</div>
+                      )}
+                    </div>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', textAlign: 'right' }}>
+                      ${payoutSummary.buyInAmount.toFixed(2)}
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', textAlign: 'right', color: row.cashout > 0 ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                      ${row.cashout.toFixed(2)}
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 700, textAlign: 'right', color: row.net > 0 ? 'var(--color-success)' : row.net < 0 ? 'var(--color-error, #ef4444)' : 'var(--color-text-muted)' }}>
+                      {row.net >= 0 ? '+' : ''}${row.net.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Totals */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0.5rem', padding: '0.75rem 0.5rem', borderTop: '1px solid var(--color-border-light)', marginTop: '0.25rem' }}>
+                <span style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>Total</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 700, textAlign: 'right' }}>${payoutSummary.totalBuyIns.toFixed(2)}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 700, textAlign: 'right' }}>${payoutSummary.totalCashouts.toFixed(2)}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 700, textAlign: 'right' }}>
+                  {(payoutSummary.totalCashouts - payoutSummary.totalBuyIns) >= 0 ? '+' : ''}${(payoutSummary.totalCashouts - payoutSummary.totalBuyIns).toFixed(2)}
+                </span>
+              </div>
+            </section>
+          )}
 
           {isOrganizer && (
             <section className="card" style={{ marginTop: '2rem' }}>

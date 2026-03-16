@@ -3,8 +3,19 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import DepositClient from './DepositClient';
+import TableFilter from '@/components/TableFilter';
+import { Suspense } from 'react';
 
-export default async function DashboardPage() {
+type FilterValue = 'all' | 'open' | 'closed';
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
+  const { filter: rawFilter } = await searchParams;
+  const filter: FilterValue = rawFilter === 'open' || rawFilter === 'closed' ? rawFilter : 'all';
+
   const session = await auth();
 
   if (!session?.user) {
@@ -12,21 +23,20 @@ export default async function DashboardPage() {
   }
 
   const userId = session.user.id;
-  const isOrganizer = session.user.role === 'ORGANIZER';
-
   // Fetch data in parallel
   const [dbUser, organizedTables, joinedTables, ledgerEntries, pnlAggregate] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { balance: true },
     }),
-    isOrganizer
-      ? prisma.table.findMany({
-          where: { organizerId: userId },
-          include: { _count: { select: { players: true } } },
-          orderBy: { createdAt: 'desc' },
-        })
-      : Promise.resolve([]),
+    prisma.table.findMany({
+      where: {
+        organizerId: userId,
+        ...(filter !== 'all' ? { status: filter.toUpperCase() } : {}),
+      },
+      include: { _count: { select: { players: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
     prisma.tablePlayer.findMany({
       where: { userId },
       include: { table: { include: { organizer: true } } },
@@ -79,43 +89,47 @@ export default async function DashboardPage() {
             <DepositClient currentBalance={balance} />
           </section>
 
-          {isOrganizer && (
-            <section className="dashboard-section" style={{ marginBottom: 'var(--space-8)' }}>
-              <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-                <h2>Your Organized Tables</h2>
-                <Link href="/tables/create" className="btn btn-primary btn-sm">+ Create Table</Link>
+          <section className="dashboard-section" style={{ marginBottom: 'var(--space-8)' }}>
+            <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
+              <h2>Tables You&apos;re Hosting</h2>
+              <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap' }}>
+                <Suspense>
+                  <TableFilter current={filter} />
+                </Suspense>
+                <Link href="/tables/create" className="btn btn-primary btn-sm">+ Host a Game</Link>
               </div>
-              
-              {organizedTables.length === 0 ? (
-                <div className="card text-center" style={{ padding: 'var(--space-10)' }}>
-                  <p className="text-muted">You haven&apos;t created any tables yet.</p>
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
-                  {organizedTables.map((table) => (
-                    <Link href={`/tables/${table.id}`} key={table.id} className="table-card">
-                      <div className="table-card-header">
-                        <div className="table-card-name">{table.name}</div>
-                        <span className={`badge ${table.status === 'OPEN' ? 'badge-open' : 'badge-closed'}`}>
-                          {table.status}
-                        </span>
+            </div>
+
+            {organizedTables.length === 0 ? (
+              <div className="card text-center" style={{ padding: 'var(--space-10)' }}>
+                <p className="text-muted">You&apos;re not currently hosting any tables.</p>
+                <Link href="/tables/create" className="btn btn-primary mt-4" style={{ marginTop: 'var(--space-4)', display: 'inline-block' }}>Host a Game</Link>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
+                {organizedTables.map((table) => (
+                  <Link href={`/tables/${table.id}`} key={table.id} className="table-card">
+                    <div className="table-card-header">
+                      <div className="table-card-name">{table.name}</div>
+                      <span className={`badge ${table.status === 'OPEN' ? 'badge-open' : 'badge-closed'}`}>
+                        {table.status}
+                      </span>
+                    </div>
+                    <div className="table-card-meta">
+                      <div className="table-card-meta-item">
+                        <span className="table-card-meta-label">Players</span>
+                        <span className="table-card-meta-value">{table._count.players} / {table.maxPlayers}</span>
                       </div>
-                      <div className="table-card-meta">
-                        <div className="table-card-meta-item">
-                          <span className="table-card-meta-label">Players</span>
-                          <span className="table-card-meta-value">{table._count.players} / {table.maxPlayers}</span>
-                        </div>
-                        <div className="table-card-meta-item">
-                          <span className="table-card-meta-label">Buy-in</span>
-                          <span className="table-card-meta-value">${Number(table.buyInAmount)}</span>
-                        </div>
+                      <div className="table-card-meta-item">
+                        <span className="table-card-meta-label">Buy-in</span>
+                        <span className="table-card-meta-value">${Number(table.buyInAmount)}</span>
                       </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
 
           <section className="dashboard-section">
             <div className="section-header" style={{ marginBottom: 'var(--space-4)' }}>
@@ -124,9 +138,7 @@ export default async function DashboardPage() {
             {joinedTables.length === 0 ? (
               <div className="card text-center" style={{ padding: 'var(--space-10)' }}>
                 <p className="text-muted">You are not currently in any games.</p>
-                {!isOrganizer && (
-                  <Link href="/tables/join" className="btn btn-primary mt-4">Join a Table</Link>
-                )}
+                <Link href="/tables/join" className="btn btn-primary mt-4" style={{ marginTop: 'var(--space-4)', display: 'inline-block' }}>Join a Table</Link>
               </div>
             ) : (
               <div style={{ display: 'grid', gap: 'var(--space-4)' }}>

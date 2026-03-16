@@ -11,7 +11,6 @@ export default function RegisterPage() {
     name: '',
     email: '',
     password: '',
-    role: 'PLAYER',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -114,28 +113,6 @@ export default function RegisterPage() {
                   minLength={8}
               required
             />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">I am a...</label>
-            <div className="role-selector">
-              <div
-                className={`role-option ${form.role === 'PLAYER' ? 'active' : ''}`}
-                onClick={() => setForm({ ...form, role: 'PLAYER' })}
-              >
-                <div className="role-option-icon">🃏</div>
-                <div className="role-option-label">Player</div>
-                <div className="role-option-desc">Join tables & play</div>
-              </div>
-              <div
-                className={`role-option ${form.role === 'ORGANIZER' ? 'active' : ''}`}
-                onClick={() => setForm({ ...form, role: 'ORGANIZER' })}
-              >
-                <div className="role-option-icon">👑</div>
-                <div className="role-option-label">Organizer</div>
-                <div className="role-option-desc">Create & manage tables</div>
-              </div>
-            </div>
           </div>
 
           <button

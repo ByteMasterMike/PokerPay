@@ -52,14 +52,14 @@ export async function POST(
 
   const { id } = await params;
 
-  let body: { action?: string; userId?: string };
+  let body: { action?: string; userId?: string; payoutSummary?: unknown };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { action, userId } = body;
+  const { action, userId, payoutSummary } = body;
 
   const table = await prisma.table.findUnique({
     where: { id },
@@ -193,7 +193,10 @@ export async function POST(
 
     await prisma.table.update({
       where: { id },
-      data: { status: 'CLOSED' },
+      data: {
+        status: 'CLOSED',
+        ...(payoutSummary !== undefined ? { payoutSummary } : {}),
+      },
     });
 
     return NextResponse.json({ message: 'Table closed' });

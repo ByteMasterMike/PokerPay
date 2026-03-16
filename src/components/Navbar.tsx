@@ -24,9 +24,6 @@ export default function Navbar() {
                 Join Table
               </Link>
               <div className="navbar-user">
-                <span className="navbar-user-role">
-                  {(session.user as { role?: string }).role || 'PLAYER'}
-                </span>
                 <span className="navbar-user-name">{session.user?.name}</span>
                 <button
                   className="btn btn-sm btn-secondary"
