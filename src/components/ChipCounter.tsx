@@ -10,6 +10,27 @@ interface ChipDenomination {
   value: number;
 }
 
+/* Generate the conic-gradient that creates the serrated outer ring of a poker chip */
+function pokerChipGradient(color: string): string {
+  const light = 'rgba(255,255,255,0.42)';
+  const segs: string[] = [];
+  for (let i = 0; i < 12; i++) {
+    const s = i * 30;
+    segs.push(`${color} ${s}deg ${s + 20}deg`);
+    segs.push(`${light} ${s + 20}deg ${s + 30}deg`);
+  }
+  return `conic-gradient(${segs.join(', ')})`;
+}
+
+/* Black text for light chips, white for dark */
+function chipTextColor(hex: string): string {
+  if (!hex.startsWith('#') || hex.length < 7) return '#fff';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#000' : '#fff';
+}
+
 export default function ChipCounter({
   tableId,
   chipDenominations,
@@ -60,12 +81,10 @@ export default function ChipCounter({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: total }),
       });
-
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Cashout failed');
       }
-
       setConfirmed(true);
       if (onSuccess) onSuccess();
       router.refresh();
@@ -83,59 +102,55 @@ export default function ChipCounter({
   };
 
   return (
-    <div
-      className="card"
-      style={{
-        marginTop: 'var(--space-4)',
-        border: '1px solid var(--color-gold-glow)',
-      }}
-    >
+    <div style={{
+      marginTop: 'var(--space-4)',
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderTop: '3px solid var(--lime)',
+      padding: 'var(--space-6)',
+    }}>
       {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--space-3)',
-          marginBottom: 'var(--space-5)',
-        }}
-      >
-        <div
-          style={{
-            padding: 'var(--space-2)',
-            background: 'var(--color-gold-glow)',
-            borderRadius: 'var(--radius-md)',
-          }}
-        >
-          <span style={{ fontSize: 'var(--text-xl)' }}>🎰</span>
+      <div style={{ marginBottom: 'var(--space-5)' }}>
+        <div style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 'var(--text-2xl)',
+          letterSpacing: '0.06em',
+          color: 'var(--text)',
+          lineHeight: 1,
+        }}>
+          COUNT YOUR STACK
         </div>
-        <div>
-          <h3
-            style={{
-              fontSize: 'var(--text-lg)',
-              fontWeight: 700,
-              margin: 0,
-              color: 'var(--color-gold)',
-            }}
-          >
-            Count Your Chips
-          </h3>
-          <p className="text-xs text-muted">Tap + / − to count each denomination</p>
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.6rem',
+          color: 'var(--text-3)',
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          marginTop: '4px',
+        }}>
+          Tap +/− or type a count per denomination
         </div>
       </div>
 
-      {error && <div className="alert alert-error text-xs" style={{ marginBottom: 'var(--space-4)' }}>{error}</div>}
+      {error && (
+        <div className="alert alert-error" style={{ fontSize: 'var(--text-xs)', marginBottom: 'var(--space-4)' }}>
+          {error}
+        </div>
+      )}
 
       {confirmed && (
-        <div className="alert alert-success text-sm" style={{ marginBottom: 'var(--space-4)' }}>
-          Cashout successful!
+        <div className="alert alert-success" style={{ fontSize: 'var(--text-sm)', marginBottom: 'var(--space-4)' }}>
+          Cashout confirmed!
         </div>
       )}
 
       {/* Chip rows */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         {chipDenominations.map((d) => {
           const count = counts[d.id] ?? 0;
           const subtotal = d.value * count;
+          const textCol = chipTextColor(d.color);
+
           return (
             <div
               key={d.id}
@@ -144,74 +159,82 @@ export default function ChipCounter({
                 alignItems: 'center',
                 gap: 'var(--space-3)',
                 padding: 'var(--space-3)',
-                background: 'rgba(0,0,0,0.25)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-border)',
+                background: 'var(--surface-2)',
+                border: `1px solid ${count > 0 ? 'rgba(203,255,0,0.25)' : 'var(--border)'}`,
+                transition: 'border-color 100ms ease',
               }}
             >
-              {/* Chip swatch */}
+              {/* CSS Poker chip */}
               <div
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  background: d.color,
-                  border: '2px solid rgba(255,255,255,0.25)',
-                  flexShrink: 0,
-                  boxShadow: `0 0 8px ${d.color}55`,
-                }}
-              />
+                className="poker-chip"
+                style={{ background: pokerChipGradient(d.color) }}
+              >
+                <div
+                  className="poker-chip-inner"
+                  style={{ background: d.color }}
+                >
+                  <span
+                    className="poker-chip-value"
+                    style={{ color: textCol }}
+                  >
+                    ${d.value % 1 === 0 ? d.value : d.value.toFixed(2)}
+                  </span>
+                </div>
+              </div>
 
-              {/* Label + value */}
+              {/* Label */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{d.label}</div>
-                <div className="text-xs text-muted">${d.value.toFixed(2)} each</div>
+                <div style={{
+                  fontWeight: 600,
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--text)',
+                }}>
+                  {d.label}
+                </div>
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.58rem',
+                  color: 'var(--text-3)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                }}>
+                  ${d.value.toFixed(2)} ea
+                </div>
               </div>
 
               {/* Subtotal */}
-              <div
-                style={{
-                  minWidth: '60px',
-                  textAlign: 'right',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: 700,
-                  color: subtotal > 0 ? 'var(--color-success)' : 'var(--color-text-muted)',
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
+              <div style={{
+                minWidth: '58px',
+                textAlign: 'right',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 700,
+                color: subtotal > 0 ? 'var(--green)' : 'var(--text-3)',
+              }}>
                 ${subtotal.toFixed(2)}
               </div>
 
-              {/* Counter controls */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-2)',
-                  flexShrink: 0,
-                }}
-              >
+              {/* Counter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                 <button
                   onClick={() => adjust(d.id, -1)}
                   disabled={count === 0 || isProcessing}
                   style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--color-border)',
-                    background: 'var(--color-surface)',
-                    color: 'var(--color-text)',
-                    fontSize: '1.2rem',
+                    width: '32px', height: '32px',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text)',
+                    fontSize: '1.1rem',
                     cursor: count === 0 ? 'not-allowed' : 'pointer',
-                    opacity: count === 0 ? 0.4 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    lineHeight: 1,
+                    opacity: count === 0 ? 0.3 : 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'var(--font-mono)',
+                    transition: 'all 80ms ease',
                   }}
                 >
                   −
                 </button>
+
                 <input
                   type="number"
                   min={0}
@@ -220,35 +243,35 @@ export default function ChipCounter({
                   onChange={(e) => setCount(d.id, e.target.value)}
                   disabled={isProcessing}
                   style={{
-                    width: '48px',
-                    height: '34px',
+                    width: '44px', height: '32px',
                     textAlign: 'center',
-                    fontWeight: 700,
-                    fontSize: 'var(--text-base)',
                     fontFamily: 'var(--font-mono)',
-                    background: 'var(--color-surface)',
-                    border: '1px solid var(--color-border-light)',
-                    borderRadius: 'var(--radius-md)',
-                    color: 'var(--color-text)',
+                    fontWeight: 700,
+                    fontSize: 'var(--text-sm)',
+                    background: 'var(--surface)',
+                    border: `1px solid ${count > 0 ? 'rgba(203,255,0,0.4)' : 'var(--border)'}`,
+                    color: 'var(--text)',
                     padding: '0 4px',
+                    borderRadius: 0,
+                    outline: 'none',
                   }}
                 />
+
                 <button
                   onClick={() => adjust(d.id, 1)}
                   disabled={isProcessing}
                   style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--color-gold)',
-                    background: 'var(--color-gold-glow)',
-                    color: 'var(--color-gold)',
-                    fontSize: '1.2rem',
+                    width: '32px', height: '32px',
+                    background: 'var(--lime)',
+                    border: '1px solid var(--lime)',
+                    color: '#000',
+                    fontSize: '1.1rem',
                     cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    lineHeight: 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 900,
+                    transition: 'all 80ms ease',
+                    boxShadow: '2px 2px 0 rgba(203,255,0,0.4)',
                   }}
                 >
                   +
@@ -259,28 +282,32 @@ export default function ChipCounter({
         })}
       </div>
 
-      {/* Total */}
-      <div
-        style={{
-          marginTop: 'var(--space-5)',
-          padding: 'var(--space-4)',
-          background: 'rgba(0,0,0,0.35)',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--color-border-light)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <span className="text-sm text-muted font-bold uppercase tracking-wider">Total Stack</span>
-        <span
-          style={{
-            fontSize: 'var(--text-3xl)',
-            fontWeight: 900,
-            color: total > 0 ? 'var(--color-success)' : 'var(--color-text-muted)',
-            fontFamily: 'var(--font-mono)',
-          }}
-        >
+      {/* Total bar */}
+      <div style={{
+        marginTop: 'var(--space-5)',
+        padding: 'var(--space-4) var(--space-5)',
+        background: 'var(--surface-3)',
+        borderLeft: '3px solid var(--lime)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}>
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.62rem',
+          color: 'var(--text-3)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.14em',
+        }}>
+          Total Stack
+        </span>
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 'var(--text-4xl)',
+          fontWeight: 700,
+          color: total > 0 ? 'var(--lime)' : 'var(--text-3)',
+          lineHeight: 1,
+        }}>
           ${total.toFixed(2)}
         </span>
       </div>
@@ -296,16 +323,12 @@ export default function ChipCounter({
           Reset
         </button>
         <button
-          className="btn btn-primary"
+          className="btn btn-success"
           onClick={handleConfirmCashout}
           disabled={isProcessing || !hasAnyChips}
-          style={{
-            flex: 2,
-            background: 'var(--color-success)',
-            borderColor: 'var(--color-success)',
-          }}
+          style={{ flex: 2 }}
         >
-          {isProcessing ? 'Processing...' : `Cash Out $${total.toFixed(2)}`}
+          {isProcessing ? 'Processing...' : `Cash Out  $${total.toFixed(2)}`}
         </button>
       </div>
     </div>

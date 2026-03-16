@@ -7,21 +7,23 @@ export default function Home() {
         <section className="hero">
           <div className="hero-content">
             <div className="hero-eyebrow">
-              ♠ ♥ ♦ ♣
+              ♠ &nbsp; ♥ &nbsp; ♦ &nbsp; ♣ &nbsp;— Home Game Banking
             </div>
             <h1>
-              Trustless Table Banking<br />
-              for <em>Serious Players</em>
+              Trustless<br />
+              Table<br />
+              <em>Banking.</em>
             </h1>
             <p>
-              No designated banker. No disputes. Players deposit via QR code,
-              cash out by chip count, and track their P&amp;L across every session.
+              No designated banker. No disputes. Players request to join,
+              organizers confirm cash — then chip count, cash out, track P&amp;L.
+              Every session. Every table.
             </p>
             <div className="hero-buttons">
               <Link href="/auth/register" className="btn btn-lg btn-primary">
-                ♠ Get Started Free
+                ♠ &nbsp;Get Started Free
               </Link>
-              <Link href="/auth/login" className="btn btn-lg btn-outline">
+              <Link href="/auth/login" className="btn btn-lg btn-secondary">
                 Sign In
               </Link>
             </div>
@@ -32,29 +34,47 @@ export default function Home() {
       <div className="container">
         <section className="features-grid">
           <div className="feature-card">
-            <span className="feature-icon">📱</span>
-            <h3>QR Code Buy-In</h3>
+            <span className="feature-icon">♠</span>
+            <h3>Payment Confirmation</h3>
             <p>
-              Scan the table&apos;s QR code. Confirm your deposit.
-              Funds flow straight to the table&apos;s isolated account — zero trust required.
+              Players request a seat. Organizer confirms cash received,
+              then approves — no auto-deduction until you say so.
             </p>
           </div>
 
           <div className="feature-card">
-            <span className="feature-icon">🔒</span>
+            <span className="feature-icon">♥</span>
             <h3>Isolated Table Accounts</h3>
             <p>
-              Every table has its own virtual bank account. No commingling of
-              personal funds. No single person holds the money.
+              Every table has its own virtual bank. No commingling of
+              personal funds. Nobody holds the pot.
             </p>
           </div>
 
           <div className="feature-card">
-            <span className="feature-icon">🎰</span>
-            <h3>AI Chip Counting</h3>
+            <span className="feature-icon">♦</span>
+            <h3>Chip Counter</h3>
             <p>
-              Snap a photo of your chip stack. Our AI counts by denomination
-              and calculates your exact payout in seconds.
+              Tap + / − or type a count per denomination.
+              Total calculates instantly. One-tap cashout confirmation.
+            </p>
+          </div>
+
+          <div className="feature-card">
+            <span className="feature-icon">♣</span>
+            <h3>Payout Summary</h3>
+            <p>
+              When you close the table, get a full breakdown: who to pay,
+              how much, and each player&apos;s net gain or loss for the night.
+            </p>
+          </div>
+
+          <div className="feature-card">
+            <span className="feature-icon">⚡</span>
+            <h3>Live Table Updates</h3>
+            <p>
+              The table page refreshes automatically. See players join,
+              approve requests, and watch cashouts happen in real time.
             </p>
           </div>
 
@@ -62,26 +82,8 @@ export default function Home() {
             <span className="feature-icon">📊</span>
             <h3>P&amp;L Tracking</h3>
             <p>
-              Automatic session history. See your all-time, monthly, and
-              per-table profit and loss. Know exactly where you stand.
-            </p>
-          </div>
-
-          <div className="feature-card">
-            <span className="feature-icon">⚡</span>
-            <h3>Instant Setup</h3>
-            <p>
-              Create a table in seconds. Configure chip denominations, set
-              the buy-in, and share the QR code. Players join immediately.
-            </p>
-          </div>
-
-          <div className="feature-card">
-            <span className="feature-icon">🏆</span>
-            <h3>Club Management</h3>
-            <p>
-              Organizers get a real-time dashboard showing pot size, active
-              players, and session history. Close tables with one tap.
+              Full ledger history across every session. Know your exact
+              all-time profit and loss without a spreadsheet.
             </p>
           </div>
         </section>
