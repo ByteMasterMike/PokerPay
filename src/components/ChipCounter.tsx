@@ -122,7 +122,13 @@ export default function ChipCounter({
       const res = await fetch(`/api/tables/${tableId}/cashout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: total, stackPhoto: photo }),
+        body: JSON.stringify({
+          amount: total,
+          stackPhoto: photo,
+          chipCounts: chipDenominations
+            .filter((d) => (counts[d.id] ?? 0) > 0)
+            .map((d) => ({ color: d.color, label: d.label, value: d.value, count: counts[d.id] ?? 0 })),
+        }),
       });
       if (!res.ok) {
         const data = await res.json();

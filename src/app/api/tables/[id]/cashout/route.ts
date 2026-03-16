@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { uploadStackPhoto } from '@/lib/r2';
+import { Prisma } from '@prisma/client';
 
 // Max cashout is buy-in * 10 to allow for winnings while preventing abuse
 const MAX_CASHOUT_MULTIPLIER = 10;
+
+type ChipCount = { color: string; label: string; value: number; count: number };
 
 export async function POST(
   request: NextRequest,
@@ -18,22 +22,26 @@ export async function POST(
 
     const { id } = await params;
 
-    let body: { amount?: number; stackPhoto?: string };
+    let body: { amount?: number; stackPhoto?: string; chipCounts?: ChipCount[] };
     try {
       body = await request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    const { amount, stackPhoto } = body;
+    const { amount, stackPhoto, chipCounts } = body;
 
-    // Validate photo is present and is a base64 JPEG/PNG data URL
+    // Validate photo
     if (!stackPhoto || !stackPhoto.startsWith('data:image/')) {
       return NextResponse.json({ error: 'A photo of your chip stack is required to cash out' }, { status: 400 });
     }
-    // Rough size guard — base64 of 2MB ≈ 2.7M chars
     if (stackPhoto.length > 3_000_000) {
       return NextResponse.json({ error: 'Photo is too large. Please use a clearer, smaller image.' }, { status: 400 });
+    }
+
+    // Validate chip counts
+    if (!chipCounts || !Array.isArray(chipCounts) || chipCounts.length === 0) {
+      return NextResponse.json({ error: 'Chip counts are required to cash out' }, { status: 400 });
     }
 
     if (amount === undefined || typeof amount !== 'number' || amount <= 0) {
@@ -72,13 +80,29 @@ export async function POST(
       );
     }
 
+    // Upload photo to Cloudflare R2, get back a public URL
+    const photoKey = `${id}/${session.user.id}/${Date.now()}.jpg`;
+    let photoUrl: string;
+    try {
+      photoUrl = await uploadStackPhoto(stackPhoto, photoKey);
+    } catch (uploadErr) {
+      console.error('R2 upload failed:', uploadErr);
+      return NextResponse.json({ error: 'Failed to upload stack photo. Please try again.' }, { status: 500 });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const updateResult = await tx.tablePlayer.updateMany({
         where: {
           id: tablePlayer.id,
           status: 'ACTIVE',
         },
-        data: { status: 'CASHED_OUT', cashoutAmount: amount, stackPhoto },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data: {
+          status: 'CASHED_OUT',
+          cashoutAmount: amount,
+          stackPhoto: photoUrl,
+          chipCounts: chipCounts as Prisma.InputJsonValue,
+        } as any,
       });
 
       if (updateResult.count === 0) {

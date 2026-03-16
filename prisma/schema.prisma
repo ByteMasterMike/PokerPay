@@ -77,7 +77,8 @@ model TablePlayer {
   id            String   @id @default(uuid())
   status        String   @default("ACTIVE") // PENDING | ACTIVE | CASHED_OUT
   cashoutAmount Decimal? @db.Decimal(12, 2)
-  stackPhoto    String?  // base64 JPEG data URL, captured at cashout
+  stackPhoto    String?  // Cloudflare R2 public URL (previously base64, migrated)
+  chipCounts    Json?    // [{ color, label, value, count }] — ML training labels
   joinedAt      DateTime @default(now())
 
   tableId String
