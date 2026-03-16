@@ -249,7 +249,7 @@ export default function TableActions({
                     {row.stackPhoto && (
                       <div style={{ position: 'relative', lineHeight: 0 }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={row.stackPhoto} alt={`${row.name}'s stack`} style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', display: 'block' }} />
+                        <img src={row.stackPhoto} alt={`${row.name}'s stack`} style={{ width: '100%', display: 'block' }} />
                         <div style={{ position: 'absolute', top: 6, left: 8, fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'var(--green)', background: 'rgba(0,0,0,0.7)', padding: '2px 6px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                           📷 Stack photo
                         </div>

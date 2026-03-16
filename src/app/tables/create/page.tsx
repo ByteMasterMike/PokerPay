@@ -3,6 +3,25 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+function pokerChipGradient(color: string): string {
+  const light = 'rgba(255,255,255,0.42)';
+  const segs: string[] = [];
+  for (let i = 0; i < 12; i++) {
+    const s = i * 30;
+    segs.push(`${color} ${s}deg ${s + 20}deg`);
+    segs.push(`${light} ${s + 20}deg ${s + 30}deg`);
+  }
+  return `conic-gradient(${segs.join(', ')})`;
+}
+
+function chipTextColor(hex: string): string {
+  if (!hex.startsWith('#') || hex.length < 7) return '#fff';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#000' : '#fff';
+}
+
 export default function CreateTablePage() {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -135,60 +154,94 @@ export default function CreateTablePage() {
 
         <div className="form-section" style={{ marginTop: '2rem' }}>
           <h2>2. Chip Denominations</h2>
-          <p className="help-text">Define the chips used at your table.</p>
+          <p className="help-text" style={{ marginBottom: '1.25rem' }}>Tap a chip to change its colour.</p>
 
-          <div className="denominations-list">
-            {denominations.map((denom, index) => (
-              <div key={index} className="denomination-row" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', alignItems: 'center' }}>
-                <input
-                  type="color"
-                  value={denom.color}
-                  onChange={(e) => updateDenomination(index, 'color', e.target.value)}
-                  style={{ width: '50px', height: '50px', padding: '0', border: 'none' }}
-                />
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Label (e.g. Red)"
-                  value={denom.label}
-                  onChange={(e) => updateDenomination(index, 'label', e.target.value)}
-                  required
-                />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  $
-                  <input
-                    type="number"
-                    className="form-input"
-                    placeholder="Value"
-                    value={denom.value}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      updateDenomination(index, 'value', Number.isFinite(v) && v > 0 ? v : 1);
-                    }}
-                    min={0.01}
-                    step={0.01}
-                    required
-                  />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            {denominations.map((denom, index) => {
+              const textCol = chipTextColor(denom.color);
+              const val = Number(denom.value);
+              return (
+                <div
+                  key={index}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-3)',
+                    padding: 'var(--space-3)',
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  {/* Clickable live chip preview — opens hidden color input */}
+                  <label style={{ cursor: 'pointer', flexShrink: 0, position: 'relative' }}>
+                    <input
+                      type="color"
+                      value={denom.color}
+                      onChange={(e) => updateDenomination(index, 'color', e.target.value)}
+                      style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
+                    />
+                    <div className="poker-chip" style={{ background: pokerChipGradient(denom.color) }}>
+                      <div className="poker-chip-inner" style={{ background: denom.color }}>
+                        <span className="poker-chip-value" style={{ color: textCol }}>
+                          ${val % 1 === 0 ? val : val.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Label + value inputs */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Name (e.g. Red)"
+                      value={denom.label}
+                      onChange={(e) => updateDenomination(index, 'label', e.target.value)}
+                      style={{ fontWeight: 600 }}
+                      required
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-2)', fontSize: 'var(--text-sm)' }}>$</span>
+                      <input
+                        type="number"
+                        className="form-input"
+                        placeholder="Value"
+                        value={denom.value}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          updateDenomination(index, 'value', Number.isFinite(v) && v > 0 ? v : 1);
+                        }}
+                        min={0.01}
+                        step={0.01}
+                        style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Remove */}
+                  {denominations.length > 1 && (
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={() => removeDenomination(index)}
+                      style={{ flexShrink: 0, borderColor: 'var(--red)', color: 'var(--red)', padding: '6px 14px', fontSize: 'var(--text-sm)' }}
+                    >
+                      REMOVE
+                    </button>
+                  )}
                 </div>
-                {denominations.length > 1 && (
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    onClick={() => removeDenomination(index)}
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <button
             type="button"
-            className="btn btn-secondary mt-2"
+            className="btn btn-secondary"
             onClick={addDenomination}
+            style={{ marginTop: 'var(--space-3)', width: '100%' }}
           >
-            + Add Chip Color
+            + ADD CHIP COLOR
           </button>
         </div>
 

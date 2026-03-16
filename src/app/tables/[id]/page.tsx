@@ -192,7 +192,7 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
                     {row.stackPhoto && (
                       <div style={{ position: 'relative', lineHeight: 0 }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={row.stackPhoto} alt={`${row.name}'s stack`} style={{ width: '100%', maxHeight: '120px', objectFit: 'cover', display: 'block' }} />
+                        <img src={row.stackPhoto} alt={`${row.name}'s stack`} style={{ width: '100%', display: 'block' }} />
                         <div style={{ position: 'absolute', top: 5, left: 7, fontFamily: 'var(--font-mono)', fontSize: '0.55rem', color: 'var(--green)', background: 'rgba(0,0,0,0.7)', padding: '2px 5px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                           📷 Stack photo
                         </div>
