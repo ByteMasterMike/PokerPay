@@ -40,10 +40,12 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
 
   if (!table) notFound();
 
+  // Non-members can view an OPEN table so they can request to join.
+  // For CLOSED tables, only members get to see the payout details.
   const isMember =
     table.organizerId === session.user.id ||
     table.players.some((p) => p.userId === session.user.id);
-  if (!isMember) notFound();
+  if (!isMember && table.status !== 'OPEN') notFound();
 
   const isOrganizer    = table.organizerId === session.user.id;
   const currentPlayer  = table.players.find((p) => p.userId === session.user.id);
