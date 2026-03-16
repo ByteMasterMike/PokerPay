@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import Link from 'next/link';
 import TableActions from './TableActions';
 import AutoRefresh from '@/components/AutoRefresh';
+import { headers } from 'next/headers';
 
 export default function TablePageWrapper({ params }: { params: Promise<{ id: string }> }) {
   return <TablePage params={params} />;
@@ -63,7 +64,10 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
   const activePlayers = table.players.filter((p) => p.status === 'ACTIVE' || p.status === 'CASHED_OUT');
   const pendingPlayers = table.players.filter((p) => p.status === 'PENDING');
 
-  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+  const headersList = await headers();
+  const host = headersList.get('x-forwarded-host') || headersList.get('host') || 'localhost:3000';
+  const proto = headersList.get('x-forwarded-proto') || (host.startsWith('localhost') ? 'http' : 'https');
+  const baseUrl = `${proto}://${host}`;
   const qrCodeDataUrl = await QRCode.toDataURL(`${baseUrl}/tables/${table.id}`);
 
   return (
