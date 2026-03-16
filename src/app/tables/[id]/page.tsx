@@ -7,6 +7,25 @@ import TableActions from './TableActions';
 import AutoRefresh from '@/components/AutoRefresh';
 import { headers } from 'next/headers';
 
+function pokerChipGradient(color: string): string {
+  const light = 'rgba(255,255,255,0.42)';
+  const segs: string[] = [];
+  for (let i = 0; i < 12; i++) {
+    const s = i * 30;
+    segs.push(`${color} ${s}deg ${s + 20}deg`);
+    segs.push(`${light} ${s + 20}deg ${s + 30}deg`);
+  }
+  return `conic-gradient(${segs.join(', ')})`;
+}
+
+function chipTextColor(hex: string): string {
+  if (!hex.startsWith('#') || hex.length < 7) return '#fff';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#000' : '#fff';
+}
+
 export default function TablePageWrapper({ params }: { params: Promise<{ id: string }> }) {
   return <TablePage params={params} />;
 }
@@ -204,14 +223,28 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
           {isOrganizer && (
             <section className="card" style={{ marginTop: '2rem' }}>
               <h2>Chip Denominations</h2>
-              <div className="chip-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-                {table.chipDenominations.map((chip) => (
-                  <div key={chip.id} className="chip-item" style={{ textAlign: 'center' }}>
-                    <div className="chip-circle" style={{ backgroundColor: chip.color, width: '60px', height: '60px', borderRadius: '50%', margin: '0 auto', border: '2px solid rgba(255,255,255,0.2)' }}></div>
-                    <div className="chip-label" style={{ marginTop: '0.5rem', fontWeight: 500 }}>{chip.label}</div>
-                    <div className="chip-val">${Number(chip.value)}</div>
-                  </div>
-                ))}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', marginTop: '1.25rem' }}>
+                {table.chipDenominations.map((chip) => {
+                  const val = Number(chip.value);
+                  const textCol = chipTextColor(chip.color);
+                  return (
+                    <div key={chip.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'var(--surface-2)', border: '1px solid var(--border)', flex: '1 1 160px', minWidth: '140px' }}>
+                      {/* Poker chip */}
+                      <div className="poker-chip" style={{ background: pokerChipGradient(chip.color), flexShrink: 0 }}>
+                        <div className="poker-chip-inner" style={{ background: chip.color }}>
+                          <span className="poker-chip-value" style={{ color: textCol }}>
+                            ${val % 1 === 0 ? val : val.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                      {/* Info */}
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--text)' }}>{chip.label}</div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--text-2)', marginTop: '2px' }}>${val.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </section>
           )}
