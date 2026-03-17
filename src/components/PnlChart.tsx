@@ -9,7 +9,6 @@ import {
   Tooltip,
   ReferenceLine,
   ResponsiveContainer,
-  TooltipProps,
 } from 'recharts';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
@@ -19,9 +18,15 @@ export interface PnlPoint {
   cumPnl: number;     // running cumulative total
 }
 
-function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
+interface TooltipPayload {
+  active?: boolean;
+  payload?: { payload: PnlPoint }[];
+  label?: string;
+}
+
+function CustomTooltip({ active, payload, label }: TooltipPayload) {
   if (!active || !payload?.length) return null;
-  const { sessionPnl, cumPnl } = payload[0].payload as PnlPoint;
+  const { sessionPnl, cumPnl } = payload[0].payload;
   const isUp = sessionPnl >= 0;
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2.5 shadow-lg text-xs space-y-1 min-w-[140px]">
