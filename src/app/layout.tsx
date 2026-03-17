@@ -46,6 +46,14 @@ export default function RootLayout({
       lang="en"
       className={`${jakartaSans.variable} ${inter.variable} ${dmMono.variable}`}
     >
+      {/* Prevent flash of wrong theme before React hydrates */}
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t==null&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         <Providers>
           <Navbar />

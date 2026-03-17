@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { LayoutDashboard, ScanLine, Spade } from 'lucide-react';
+import { LayoutDashboard, ScanLine, Spade, Sun, Moon } from 'lucide-react';
+import { useTheme } from '@/components/ThemeProvider';
 
 export default function Navbar() {
   const { data: session } = useSession();
+  const { theme, toggle } = useTheme();
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
@@ -24,6 +26,15 @@ export default function Navbar() {
 
         {/* Nav links */}
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggle}
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            aria-label="Toggle dark mode"
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
           {session ? (
             <>
               <Link href="/dashboard">
