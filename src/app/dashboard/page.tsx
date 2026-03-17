@@ -3,9 +3,9 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { TrendingUp, Users, Plus, ArrowRight, Clock } from 'lucide-react';
-import DepositClient from './DepositClient';
+import { Users, Plus, ArrowRight, Clock, BarChart2 } from 'lucide-react';
 import TableFilter from '@/components/TableFilter';
+import PnlChart, { type PnlPoint } from '@/components/PnlChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,8 +27,7 @@ export default async function DashboardPage({
 
   const userId = session.user.id;
 
-  const [dbUser, organizedTables, joinedTables, ledgerEntries, pnlAggregate] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { balance: true } }),
+  const [organizedTables, joinedTables, cashedOutSessions, ledgerEntries] = await Promise.all([
     prisma.table.findMany({
       where: { organizerId: userId, ...(filter !== 'all' ? { status: filter.toUpperCase() } : {}) },
       include: { _count: { select: { players: true } } },
@@ -39,15 +38,33 @@ export default async function DashboardPage({
       include: { table: { include: { organizer: true } } },
       orderBy: { joinedAt: 'desc' },
     }),
-    prisma.ledgerEntry.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 5 }),
-    prisma.ledgerEntry.aggregate({
+    prisma.tablePlayer.findMany({
+      where: { userId, status: 'CASHED_OUT' },
+      include: { table: { select: { buyInAmount: true, name: true } } },
+      orderBy: { joinedAt: 'asc' },
+    }),
+    prisma.ledgerEntry.findMany({
       where: { userId, type: { not: 'DEPOSIT' } },
-      _sum: { amount: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
     }),
   ]);
 
-  const balance  = Number(dbUser?.balance ?? 0);
-  const totalPnL = Number(pnlAggregate._sum.amount ?? 0);
+  // Build time-series P&L from completed sessions
+  let running = 0;
+  const pnlPoints: PnlPoint[] = cashedOutSessions.map((s) => {
+    const cost = (1 + s.rebuys) * Number(s.table.buyInAmount);
+    const sessionPnl = Number(s.cashoutAmount ?? 0) - cost;
+    running += sessionPnl;
+    return {
+      date: new Date(s.joinedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      sessionPnl,
+      cumPnl: running,
+    };
+  });
+
+  const totalPnL = running;
+  const sessionCount = joinedTables.length;
 
   return (
     <div className="container py-10">
@@ -62,16 +79,7 @@ export default async function DashboardPage({
       </header>
 
       {/* Stat cards */}
-      <StaggerContainer className="mb-10 grid gap-4 sm:grid-cols-3">
-        <StaggerItem>
-          <Card className="border-border/60 bg-card">
-            <CardContent className="p-5">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Balance</p>
-              <p className="mt-1 font-mono text-3xl font-bold text-foreground">${balance.toFixed(2)}</p>
-            </CardContent>
-          </Card>
-        </StaggerItem>
-
+      <StaggerContainer className="mb-6 grid gap-4 sm:grid-cols-2">
         <StaggerItem>
           <Card className="border-border/60 bg-card">
             <CardContent className="p-5">
@@ -79,6 +87,7 @@ export default async function DashboardPage({
               <p className={`mt-1 font-mono text-3xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
               </p>
+              <p className="mt-1 text-xs text-muted-foreground">across all completed sessions</p>
             </CardContent>
           </Card>
         </StaggerItem>
@@ -89,11 +98,29 @@ export default async function DashboardPage({
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 <Users className="inline h-3 w-3 mr-1" />Sessions
               </p>
-              <p className="mt-1 font-mono text-3xl font-bold text-foreground">{joinedTables.length}</p>
+              <p className="mt-1 font-mono text-3xl font-bold text-foreground">{sessionCount}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {cashedOutSessions.length} cashed out
+              </p>
             </CardContent>
           </Card>
         </StaggerItem>
       </StaggerContainer>
+
+      {/* P&L Chart */}
+      <FadeIn delay={0.1}>
+        <Card className="mb-8 border-border/60 bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BarChart2 className="h-4 w-4 text-primary" />
+              P&amp;L Over Time
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PnlChart data={pnlPoints} />
+          </CardContent>
+        </Card>
+      </FadeIn>
 
       {/* Main grid */}
       <FadeIn delay={0.2}>
@@ -101,7 +128,6 @@ export default async function DashboardPage({
 
         {/* Left column */}
         <div className="space-y-8">
-          <DepositClient currentBalance={balance} />
 
           {/* Tables you're hosting */}
           <section>
