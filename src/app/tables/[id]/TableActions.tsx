@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, RefreshCw } from 'lucide-react';
 import ChipCounter from '@/components/ChipCounter';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -15,7 +15,7 @@ import {
 
 interface ChipDenomination { id: string; label: string; color: string; value: number; }
 interface PendingPlayer     { id: string; userId: string; name: string; }
-interface ActivePlayer      { name: string; status: string; cashoutAmount: number | null; stackPhoto: string | null; }
+interface ActivePlayer      { userId: string; name: string; status: string; cashoutAmount: number | null; stackPhoto: string | null; rebuys: number; }
 
 export default function TableActions({
   tableId, status, isOrganizer, isPlayer, isPending, isFull,
@@ -28,6 +28,7 @@ export default function TableActions({
   const router = useRouter();
   const [loading, setLoading]               = useState(false);
   const [approvalLoading, setApprovalLoading] = useState<string | null>(null);
+  const [rebuyLoading, setRebuyLoading]      = useState<string | null>(null);
   const [error, setError]                   = useState('');
   const [showCashout, setShowCashout]        = useState(false);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
@@ -70,6 +71,25 @@ export default function TableActions({
     }
   };
 
+  const handleRebuy = async (userId: string) => {
+    setRebuyLoading(userId);
+    setError('');
+    try {
+      const res = await fetch(`/api/tables/${tableId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'rebuy', userId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to record rebuy');
+      router.refresh();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRebuyLoading(null);
+    }
+  };
+
   if (status === 'CLOSED') {
     return (
       <Card className="border-border/60 bg-card text-center">
@@ -81,9 +101,14 @@ export default function TableActions({
     );
   }
 
-  const payoutRows     = activePlayers.map((p) => ({ ...p, cashout: p.cashoutAmount ?? 0, net: (p.cashoutAmount ?? 0) - buyInAmount }));
-  const totalBuyIns    = activePlayers.length * buyInAmount;
-  const totalCashouts  = payoutRows.reduce((s, r) => s + r.cashout, 0);
+  const payoutRows    = activePlayers.map((p) => ({
+    ...p,
+    cashout:   p.cashoutAmount ?? 0,
+    totalCost: (1 + p.rebuys) * buyInAmount,
+    net:       (p.cashoutAmount ?? 0) - (1 + p.rebuys) * buyInAmount,
+  }));
+  const totalBuyIns   = payoutRows.reduce((s, r) => s + r.totalCost, 0);
+  const totalCashouts = payoutRows.reduce((s, r) => s + r.cashout, 0);
 
   return (
     <div className="space-y-4">
@@ -126,6 +151,46 @@ export default function TableActions({
             ))}
             <p className="text-xs text-muted-foreground pt-1">
               Confirm you received ${buyInAmount.toFixed(2)} cash from each player before approving.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Rebuy panel — organizer sees active players and can record a rebuy */}
+      {isOrganizer && activePlayers.filter(p => p.status === 'ACTIVE').length > 0 && (
+        <Card className="border-border/60 bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <RefreshCw className="h-4 w-4 text-primary" />
+              Record Rebuy
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {activePlayers.filter(p => p.status === 'ACTIVE').map((p) => (
+              <div key={p.userId} className="flex items-center gap-2 rounded-md bg-secondary/30 p-2">
+                <Avatar className="h-7 w-7">
+                  <AvatarFallback className="text-xs">{p.name[0]}</AvatarFallback>
+                </Avatar>
+                <span className="flex-1 text-sm font-semibold">{p.name}</span>
+                {p.rebuys > 0 && (
+                  <span className="text-[0.65rem] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                    ×{p.rebuys + 1}
+                  </span>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  disabled={rebuyLoading === p.userId}
+                  onClick={() => handleRebuy(p.userId)}
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  {rebuyLoading === p.userId ? '…' : `+$${buyInAmount.toFixed(0)}`}
+                </Button>
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground pt-1">
+              Confirm you received ${buyInAmount.toFixed(2)} cash before recording a rebuy.
             </p>
           </CardContent>
         </Card>
@@ -225,7 +290,14 @@ export default function TableActions({
                   )}
                   <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center px-3 py-3">
                     <div>
-                      <p className="text-sm font-semibold">{row.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-semibold">{row.name}</p>
+                        {row.rebuys > 0 && (
+                          <span className="text-[0.6rem] font-bold bg-primary/10 text-primary px-1 py-0.5 rounded-full">
+                            ×{row.rebuys + 1} buy-ins
+                          </span>
+                        )}
+                      </div>
                       {row.status !== 'CASHED_OUT' && (
                         <p className="text-xs text-amber-400">Not cashed out yet</p>
                       )}
@@ -233,7 +305,7 @@ export default function TableActions({
                         <p className="text-xs text-red-400">No photo provided</p>
                       )}
                     </div>
-                    <span className="font-mono text-xs text-right">${buyInAmount.toFixed(2)}</span>
+                    <span className="font-mono text-xs text-right">${row.totalCost.toFixed(2)}</span>
                     <span className={`font-mono text-xs text-right ${row.cashout > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
                       ${row.cashout.toFixed(2)}
                     </span>

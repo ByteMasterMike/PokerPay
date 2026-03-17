@@ -52,7 +52,7 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
   const isPlayer       = !!currentPlayer && currentPlayer.status !== 'PENDING';
   const isPending      = currentPlayer?.status === 'PENDING';
 
-  type PayoutRow = { name: string; status: string; cashout: number; net: number; stackPhoto?: string | null };
+  type PayoutRow = { name: string; status: string; cashout: number; net: number; totalCost: number; rebuys: number; stackPhoto?: string | null };
   type PayoutSummary = {
     closedAt: string;
     buyInAmount: number;
@@ -212,10 +212,17 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
                     )}
                     <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center px-3 py-3">
                       <div>
-                        <p className="text-sm font-semibold">{row.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold">{row.name}</p>
+                          {row.rebuys > 0 && (
+                            <span className="text-[0.6rem] font-bold bg-primary/10 text-primary px-1 py-0.5 rounded-full">
+                              ×{row.rebuys + 1} buy-ins
+                            </span>
+                          )}
+                        </div>
                         {row.status !== 'CASHED_OUT' && <p className="text-xs text-amber-400">Did not cash out</p>}
                       </div>
-                      <span className="font-mono text-xs text-right">${payoutSummary.buyInAmount.toFixed(2)}</span>
+                      <span className="font-mono text-xs text-right">${(row.totalCost ?? payoutSummary.buyInAmount).toFixed(2)}</span>
                       <span className={`font-mono text-xs text-right ${row.cashout > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
                         ${row.cashout.toFixed(2)}
                       </span>
@@ -273,8 +280,10 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
             chipDenominations={table.chipDenominations.map(d => ({ ...d, value: Number(d.value) }))}
             pendingPlayers={isOrganizer ? pendingPlayers.map(p => ({ id: p.id, userId: p.userId, name: p.user.name })) : []}
             activePlayers={activePlayers.map(p => ({
+              userId: p.userId,
               name: p.user.name,
               status: p.status,
+              rebuys: p.rebuys ?? 0,
               cashoutAmount: isOrganizer ? (p.cashoutAmount !== null ? Number(p.cashoutAmount) : null) : null,
               stackPhoto: isOrganizer ? (p.stackPhoto ?? null) : null,
             }))}

@@ -186,6 +186,63 @@ export async function POST(
     return NextResponse.json({ message: 'Player request rejected' });
   }
 
+  // ── REBUY ────────────────────────────────────────────────────────────────
+  // Organizer records an additional buy-in for a player who has busted
+  if (action === 'rebuy') {
+    if (table.organizerId !== session.user.id) {
+      return NextResponse.json({ error: 'Only the organizer can record rebuys' }, { status: 403 });
+    }
+    if (!userId) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+
+    const player = await prisma.tablePlayer.findUnique({
+      where: { tableId_userId: { tableId: id, userId } },
+    });
+    if (!player || player.status === 'PENDING') {
+      return NextResponse.json({ error: 'Player is not active at this table' }, { status: 404 });
+    }
+    if (player.status === 'CASHED_OUT') {
+      return NextResponse.json({ error: 'Player has already cashed out and cannot rebuy' }, { status: 400 });
+    }
+    if (table.status !== 'OPEN') {
+      return NextResponse.json({ error: 'Table is closed' }, { status: 400 });
+    }
+
+    const rebuyResult = await prisma.$transaction(async (tx) => {
+      const balanceUpdate = await tx.user.updateMany({
+        where: { id: userId, balance: { gte: table.buyInAmount } },
+        data: { balance: { decrement: table.buyInAmount } },
+      });
+      if (balanceUpdate.count === 0) {
+        return { success: false as const, error: `Player has insufficient funds for the $${table.buyInAmount} rebuy` };
+      }
+
+      await tx.ledgerEntry.create({
+        data: {
+          userId,
+          amount: -table.buyInAmount,
+          type: 'BUY_IN',
+          description: `Rebuy for table: ${table.name}`,
+        },
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (tx.tablePlayer.update as any)({
+        where: { tableId_userId: { tableId: id, userId } },
+        data: { rebuys: { increment: 1 } },
+      });
+
+      return { success: true as const };
+    });
+
+    if (!rebuyResult.success) {
+      return NextResponse.json({ error: rebuyResult.error }, { status: 400 });
+    }
+
+    return NextResponse.json({ message: 'Rebuy recorded successfully' });
+  }
+
   // ── CLOSE ────────────────────────────────────────────────────────────────
   if (action === 'close') {
     if (table.organizerId !== session.user.id) {
