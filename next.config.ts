@@ -6,8 +6,6 @@ const nextConfig: NextConfig = {
       {
         source: '/(.*)',
         headers: [
-          // Bypass ngrok browser warning in dev
-          { key: 'ngrok-skip-browser-warning', value: '1' },
           // Camera restricted to same origin only
           { key: 'Permissions-Policy', value: 'camera=(self)' },
           // Prevent MIME-type sniffing

@@ -3,14 +3,15 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { Users, Plus, ArrowRight, Clock, BarChart2 } from 'lucide-react';
+import { Plus, ArrowRight, Clock, BarChart2 } from 'lucide-react';
 import TableFilter from '@/components/TableFilter';
 import PnlChart, { type PnlPoint } from '@/components/PnlChart';
+import DashboardStats from './DashboardStats';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { StaggerContainer, StaggerItem, FadeIn } from '@/components/FadeIn';
+import { FadeIn } from '@/components/FadeIn';
 
 type FilterValue = 'all' | 'open' | 'closed';
 
@@ -53,7 +54,7 @@ export default async function DashboardPage({
   // Build time-series P&L from completed sessions
   let running = 0;
   const pnlPoints: PnlPoint[] = cashedOutSessions.map((s) => {
-    const cost = (1 + s.rebuys) * Number(s.table.buyInAmount);
+    const cost = (1 + (s.rebuys ?? 0)) * Number(s.table.buyInAmount);
     const sessionPnl = Number(s.cashoutAmount ?? 0) - cost;
     running += sessionPnl;
     return {
@@ -79,33 +80,11 @@ export default async function DashboardPage({
       </header>
 
       {/* Stat cards */}
-      <StaggerContainer className="mb-6 grid gap-4 sm:grid-cols-2">
-        <StaggerItem>
-          <Card className="border-border/60 bg-card">
-            <CardContent className="p-5">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Net P&amp;L</p>
-              <p className={`mt-1 font-mono text-3xl font-bold ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">across all completed sessions</p>
-            </CardContent>
-          </Card>
-        </StaggerItem>
-
-        <StaggerItem>
-          <Card className="border-border/60 bg-card">
-            <CardContent className="p-5">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <Users className="inline h-3 w-3 mr-1" />Sessions
-              </p>
-              <p className="mt-1 font-mono text-3xl font-bold text-foreground">{sessionCount}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {cashedOutSessions.length} cashed out
-              </p>
-            </CardContent>
-          </Card>
-        </StaggerItem>
-      </StaggerContainer>
+      <DashboardStats
+        totalPnL={totalPnL}
+        sessionCount={sessionCount}
+        cashedOutCount={cashedOutSessions.length}
+      />
 
       {/* P&L Chart */}
       <FadeIn delay={0.1}>

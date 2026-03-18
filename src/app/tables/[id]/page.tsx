@@ -76,7 +76,7 @@ async function TablePage({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <div className="container py-8">
-      <AutoRefresh intervalMs={5000} />
+      <AutoRefresh intervalMs={5000} disabled={table.status === 'CLOSED'} />
 
       {/* Back link */}
       <Link href="/dashboard" className="mb-6 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground no-underline transition-colors">

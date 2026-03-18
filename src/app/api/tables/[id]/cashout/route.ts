@@ -72,7 +72,8 @@ export async function POST(
       );
     }
 
-    const maxCashout = Number(tablePlayer.table.buyInAmount) * MAX_CASHOUT_MULTIPLIER;
+    const rebuys = tablePlayer.rebuys ?? 0;
+    const maxCashout = (1 + rebuys) * Number(tablePlayer.table.buyInAmount) * MAX_CASHOUT_MULTIPLIER;
     if (amount > maxCashout) {
       return NextResponse.json(
         { error: `Cashout amount exceeds maximum of $${maxCashout.toFixed(2)}` },
@@ -108,11 +109,6 @@ export async function POST(
       if (updateResult.count === 0) {
         return { success: false as const, conflict: true };
       }
-
-      await tx.user.update({
-        where: { id: session.user.id },
-        data: { balance: { increment: amount } },
-      });
 
       await tx.ledgerEntry.create({
         data: {

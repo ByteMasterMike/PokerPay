@@ -1,18 +1,38 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
+import { motion, useScroll, useMotionValueEvent } from 'framer-motion';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { LayoutDashboard, ScanLine, Spade, Sun, Moon } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 
+const navLinks = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/tables/join', label: 'Join Table', icon: ScanLine },
+];
+
 export default function Navbar() {
   const { data: session } = useSession();
   const { theme, toggle } = useTheme();
+  const pathname = usePathname();
+  const { scrollY } = useScroll();
+  const [scrolled, setScrolled] = useState(false);
+
+  useMotionValueEvent(scrollY, 'change', (y) => {
+    setScrolled(y > 8);
+  });
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
+    <motion.nav
+      className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl"
+      animate={{ borderBottomWidth: scrolled ? 1 : 0 }}
+      transition={{ duration: 0.2 }}
+      style={{ borderBottomColor: 'hsl(var(--border))' }}
+    >
       <div className="container flex h-16 items-center justify-between">
         {/* Brand */}
         <Link href="/" className="flex items-center gap-2.5 no-underline hover:no-underline group">
@@ -26,6 +46,7 @@ export default function Navbar() {
 
         {/* Nav links */}
         <div className="flex items-center gap-1">
+          {/* Dark mode toggle */}
           <Button
             variant="ghost"
             size="icon"
@@ -35,20 +56,35 @@ export default function Navbar() {
           >
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
+
           {session ? (
             <>
-              <Link href="/dashboard">
-                <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground">
-                  <LayoutDashboard className="h-3.5 w-3.5" />
-                  Dashboard
-                </Button>
-              </Link>
-              <Link href="/tables/join">
-                <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground">
-                  <ScanLine className="h-3.5 w-3.5" />
-                  Join Table
-                </Button>
-              </Link>
+              {navLinks.map(({ href, label, icon: Icon }) => {
+                const isActive = pathname === href || pathname.startsWith(href + '/');
+                return (
+                  <Link key={href} href={href} className="relative">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`gap-1.5 transition-colors ${
+                        isActive
+                          ? 'text-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {label}
+                    </Button>
+                    {isActive && (
+                      <motion.div
+                        layoutId="nav-indicator"
+                        className="absolute -bottom-[17px] left-2 right-2 h-[2px] rounded-full bg-primary"
+                        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      />
+                    )}
+                  </Link>
+                );
+              })}
 
               <div className="ml-2 flex items-center gap-3">
                 <div className="flex items-center gap-2">
@@ -85,6 +121,6 @@ export default function Navbar() {
           )}
         </div>
       </div>
-    </nav>
+    </motion.nav>
   );
 }

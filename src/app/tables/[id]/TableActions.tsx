@@ -338,14 +338,7 @@ export default function TableActions({
               className="flex-[2]"
               disabled={loading}
               onClick={async () => {
-                const payoutSummary = {
-                  closedAt: new Date().toISOString(),
-                  buyInAmount,
-                  rows: payoutRows,
-                  totalBuyIns,
-                  totalCashouts,
-                };
-                await handleTableAction('close', { payoutSummary });
+                await handleTableAction('close');
                 setShowPayoutModal(false);
               }}
             >

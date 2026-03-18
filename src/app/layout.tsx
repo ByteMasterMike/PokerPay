@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, Inter, DM_Mono } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/Navbar';
 import Providers from '@/components/Providers';
+import PageTransition from '@/components/PageTransition';
 
 const jakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -57,7 +58,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-background font-sans antialiased">
         <Providers>
           <Navbar />
-          <main>{children}</main>
+          <PageTransition>{children}</PageTransition>
         </Providers>
       </body>
     </html>

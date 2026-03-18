@@ -55,7 +55,10 @@ export default function ChipCounter({
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoLoading, setPhotoLoading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanMessage, setScanMessage] = useState('');
 
   const adjust = (id: string, delta: number) => {
     setCounts((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) + delta) }));

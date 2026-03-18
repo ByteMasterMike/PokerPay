@@ -53,14 +53,14 @@ export async function POST(
 
   const { id } = await params;
 
-  let body: { action?: string; userId?: string; payoutSummary?: unknown };
+  let body: { action?: string; userId?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { action, userId, payoutSummary } = body;
+  const { action, userId } = body;
 
   const table = await prisma.table.findUnique({
     where: { id },
@@ -129,15 +129,7 @@ export async function POST(
       return NextResponse.json({ error: 'Table is full' }, { status: 400 });
     }
 
-    const approveResult = await prisma.$transaction(async (tx) => {
-      const balanceUpdate = await tx.user.updateMany({
-        where: { id: userId, balance: { gte: table.buyInAmount } },
-        data: { balance: { decrement: table.buyInAmount } },
-      });
-      if (balanceUpdate.count === 0) {
-        return { success: false as const, error: `Player has insufficient funds for the $${table.buyInAmount} buy-in` };
-      }
-
+    await prisma.$transaction(async (tx) => {
       await tx.ledgerEntry.create({
         data: {
           userId,
@@ -151,15 +143,9 @@ export async function POST(
         where: { tableId_userId: { tableId: id, userId } },
         data: { status: 'ACTIVE' },
       });
-
-      return { success: true as const };
     });
 
-    if (!approveResult.success) {
-      return NextResponse.json({ error: approveResult.error }, { status: 400 });
-    }
-
-    return NextResponse.json({ message: 'Player approved and buy-in collected' });
+    return NextResponse.json({ message: 'Player approved' });
   }
 
   // ── REJECT ───────────────────────────────────────────────────────────────
@@ -209,15 +195,7 @@ export async function POST(
       return NextResponse.json({ error: 'Table is closed' }, { status: 400 });
     }
 
-    const rebuyResult = await prisma.$transaction(async (tx) => {
-      const balanceUpdate = await tx.user.updateMany({
-        where: { id: userId, balance: { gte: table.buyInAmount } },
-        data: { balance: { decrement: table.buyInAmount } },
-      });
-      if (balanceUpdate.count === 0) {
-        return { success: false as const, error: `Player has insufficient funds for the $${table.buyInAmount} rebuy` };
-      }
-
+    await prisma.$transaction(async (tx) => {
       await tx.ledgerEntry.create({
         data: {
           userId,
@@ -232,31 +210,75 @@ export async function POST(
         where: { tableId_userId: { tableId: id, userId } },
         data: { rebuys: { increment: 1 } },
       });
-
-      return { success: true as const };
     });
-
-    if (!rebuyResult.success) {
-      return NextResponse.json({ error: rebuyResult.error }, { status: 400 });
-    }
 
     return NextResponse.json({ message: 'Rebuy recorded successfully' });
   }
 
   // ── CLOSE ────────────────────────────────────────────────────────────────
+  // Force-cashout any remaining ACTIVE players at $0, then compute the payout
+  // summary server-side (so it includes force-cashed players) and close the table.
   if (action === 'close') {
     if (table.organizerId !== session.user.id) {
       return NextResponse.json({ error: 'Only the organizer can close this table' }, { status: 403 });
     }
 
-    await prisma.table.update({
-      where: { id },
-      data: {
-        status: 'CLOSED',
-        ...(payoutSummary !== undefined
-          ? { payoutSummary: payoutSummary as Prisma.InputJsonValue }
-          : {}),
-      },
+    await prisma.$transaction(async (tx) => {
+      // Force-cashout every ACTIVE player at $0
+      const stillActive = await tx.tablePlayer.findMany({
+        where: { tableId: id, status: 'ACTIVE' },
+        select: { userId: true },
+      });
+
+      for (const { userId: pid } of stillActive) {
+        await tx.tablePlayer.update({
+          where: { tableId_userId: { tableId: id, userId: pid } },
+          data: { status: 'CASHED_OUT', cashoutAmount: 0 },
+        });
+        await tx.ledgerEntry.create({
+          data: {
+            userId: pid,
+            amount: 0,
+            type: 'CASH_OUT',
+            description: `Force cashout (table closed): ${table.name}`,
+          },
+        });
+      }
+
+      // After force-cashout, read all players to build the payout summary server-side
+      const allPlayers = await tx.tablePlayer.findMany({
+        where: { tableId: id },
+        include: { user: { select: { name: true } } },
+      });
+
+      const buyInAmt = Number(table.buyInAmount);
+      const rows = allPlayers.map((p) => {
+        const rebuys = p.rebuys ?? 0;
+        const cashout = Number(p.cashoutAmount ?? 0);
+        const totalCost = (1 + rebuys) * buyInAmt;
+        return {
+          name: p.user.name,
+          status: p.status,
+          cashout,
+          net: cashout - totalCost,
+          totalCost,
+          rebuys,
+          stackPhoto: p.stackPhoto ?? null,
+        };
+      });
+
+      const serverPayoutSummary = {
+        closedAt: new Date().toISOString(),
+        buyInAmount: buyInAmt,
+        rows,
+        totalBuyIns:   rows.reduce((s, r) => s + r.totalCost, 0),
+        totalCashouts: rows.reduce((s, r) => s + r.cashout, 0),
+      };
+
+      await tx.table.update({
+        where: { id },
+        data: { status: 'CLOSED', payoutSummary: serverPayoutSummary as Prisma.InputJsonValue },
+      });
     });
 
     return NextResponse.json({ message: 'Table closed' });

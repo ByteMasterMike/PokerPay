@@ -58,14 +58,20 @@ export default function PnlChart({ data }: { data: PnlPoint[] }) {
     );
   }
 
-  const values = data.map((d) => d.cumPnl);
+  const cleanData = data.map((d) => ({
+    ...d,
+    sessionPnl: isNaN(d.sessionPnl) ? 0 : d.sessionPnl,
+    cumPnl: isNaN(d.cumPnl) ? 0 : d.cumPnl,
+  }));
+  const values = cleanData.map((d) => d.cumPnl);
   const min = Math.min(...values, 0);
   const max = Math.max(...values, 0);
   const range = max - min || 1;
   // gradient offset: where y=0 falls between min and max (0 = top, 1 = bottom in SVG)
   const gradientOffset = max / range;
 
-  const totalPnl = data[data.length - 1]?.cumPnl ?? 0;
+  const rawTotal = data[data.length - 1]?.cumPnl ?? 0;
+  const totalPnl = isNaN(rawTotal) ? 0 : rawTotal;
   const isPositive = totalPnl >= 0;
 
   return (
@@ -86,7 +92,7 @@ export default function PnlChart({ data }: { data: PnlPoint[] }) {
       </div>
 
       <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <AreaChart data={cleanData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="pnlGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset={0}              stopColor="#34d399" stopOpacity={0.35} />
